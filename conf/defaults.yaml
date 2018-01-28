@@ -88,7 +88,6 @@ ui.filter.params: null
 ui.users: null
 ui.header.buffer.bytes: 4096
 ui.http.creds.plugin: org.apache.storm.security.auth.DefaultHttpCredentialsPlugin
-ui.pagination: 20
 
 logviewer.port: 8000
 logviewer.childopts: "-Xmx128m"
@@ -124,7 +123,7 @@ supervisor.blobstore.class: "org.apache.storm.blobstore.NimbusBlobStore"
 supervisor.blobstore.download.thread.count: 5
 supervisor.blobstore.download.max_retries: 3
 supervisor.localizer.cache.target.size.mb: 10240
-supervisor.localizer.cleanup.interval.ms: 30000
+supervisor.localizer.cleanup.interval.ms: 600000
 
 nimbus.blobstore.class: "org.apache.storm.blobstore.LocalFsBlobStore"
 nimbus.blobstore.expiration.secs: 600
@@ -191,10 +190,12 @@ task.backpressure.poll.secs: 30
 topology.backpressure.enable: false
 backpressure.disruptor.high.watermark: 0.9
 backpressure.disruptor.low.watermark: 0.4
-backpressure.znode.timeout.secs: 30
-backpressure.znode.update.freq.secs: 15
 
-# Used by workers to communicate
+zmq.threads: 1
+zmq.linger.millis: 5000
+zmq.hwm: 0
+
+
 storm.messaging.netty.server_worker_threads: 1
 storm.messaging.netty.client_worker_threads: 1
 storm.messaging.netty.buffer_size: 5242880 #5MB buffer
@@ -258,9 +259,6 @@ topology.disruptor.batch.size: 100
 topology.disruptor.batch.timeout.millis: 1
 topology.disable.loadaware.messaging: false
 topology.state.checkpoint.interval.ms: 1000
-topology.localityaware.higher.bound.percent: 0.8
-topology.localityaware.lower.bound.percent: 0.2
-topology.serialized.message.size.metrics: false
 
 # Configs for Resource Aware Scheduler
 # topology priority describing the importance of the topology in decreasing importance starting from 0 (i.e. 0 is the highest priority and the priority importance decreases as the priority number increases).
@@ -271,13 +269,8 @@ topology.component.resources.offheap.memory.mb: 0.0
 topology.component.cpu.pcore.percent: 10.0
 topology.worker.max.heap.size.mb: 768.0
 topology.scheduler.strategy: "org.apache.storm.scheduler.resource.strategies.scheduling.DefaultResourceAwareStrategy"
+resource.aware.scheduler.eviction.strategy: "org.apache.storm.scheduler.resource.strategies.eviction.DefaultEvictionStrategy"
 resource.aware.scheduler.priority.strategy: "org.apache.storm.scheduler.resource.strategies.priority.DefaultSchedulingPriorityStrategy"
-
-blacklist.scheduler.tolerance.time.secs: 300
-blacklist.scheduler.tolerance.count: 3
-blacklist.scheduler.resume.time.secs: 1800
-blacklist.scheduler.reporter: "org.apache.storm.scheduler.blacklist.reporters.LogReporter"
-blacklist.scheduler.strategy: "org.apache.storm.scheduler.blacklist.strategies.DefaultBlacklistStrategy"
 
 dev.zookeeper.path: "/tmp/dev-storm-zookeeper"
 
@@ -294,12 +287,6 @@ pacemaker.thrift.message.size.max: 10485760
 #default storm daemon metrics reporter plugins
 storm.daemon.metrics.reporter.plugins:
      - "org.apache.storm.daemon.metrics.reporters.JmxPreparableReporter"
-
-storm.metricstore.class: "org.apache.storm.metricstore.rocksdb.RocksDbStore"
-storm.metricstore.rocksdb.location: "storm_rocks"
-storm.metricstore.rocksdb.create_if_missing: true
-storm.metricstore.rocksdb.metadata_string_cache_capacity: 4000
-storm.metricstore.rocksdb.retention_hours: 240
 
 # configuration of cluster metrics consumer
 storm.cluster.metrics.consumer.publish.interval.secs: 60
@@ -332,5 +319,4 @@ worker.metrics:
     "CGroupCpu": "org.apache.storm.metric.cgroup.CGroupCpu"
     "CGroupCpuGuarantee": "org.apache.storm.metric.cgroup.CGroupCpuGuarantee"
 
-# The number of buckets for running statistics
 num.stat.buckets: 20

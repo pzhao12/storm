@@ -23,7 +23,7 @@ import static org.apache.storm.daemon.utils.ListFunctionalSupport.drop;
 import static org.apache.storm.daemon.utils.ListFunctionalSupport.first;
 import static org.apache.storm.daemon.utils.ListFunctionalSupport.last;
 import static org.apache.storm.daemon.utils.ListFunctionalSupport.rest;
-import static org.apache.storm.daemon.utils.PathUtil.truncatePathToLastElements;
+import static org.apache.storm.daemon.utils.ListFunctionalSupport.takeLast;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -31,14 +31,12 @@ import com.google.common.annotations.VisibleForTesting;
 
 import java.io.BufferedInputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -82,7 +80,6 @@ public class LogviewerLogSearchHandler {
     private final String daemonLogRoot;
     private final ResourceAuthorizer resourceAuthorizer;
     private final Integer logviewerPort;
-    private final String scheme;
 
     /**
      * Constructor.
@@ -98,14 +95,8 @@ public class LogviewerLogSearchHandler {
         this.logRoot = logRoot;
         this.daemonLogRoot = daemonLogRoot;
         this.resourceAuthorizer = resourceAuthorizer;
-        Object httpsPort = stormConf.get(DaemonConfig.LOGVIEWER_HTTPS_PORT);
-        if (httpsPort == null) {
-            this.logviewerPort = ObjectReader.getInt(stormConf.get(DaemonConfig.LOGVIEWER_PORT));
-            this.scheme = "http";
-        } else {
-            this.logviewerPort = ObjectReader.getInt(httpsPort);
-            this.scheme = "https";
-        }
+
+        this.logviewerPort = ObjectReader.getInt(stormConf.get(DaemonConfig.LOGVIEWER_PORT));
     }
 
     /**
@@ -182,7 +173,7 @@ public class LogviewerLogSearchHandler {
                                               Boolean searchArchived, String callback, String origin) {
         String rootDir = logRoot;
         Object returnValue;
-        File topologyDir = new File(rootDir, topologyId);
+        File topologyDir = new File(rootDir + Utils.FILE_PATH_SEPARATOR + topologyId);
         if (StringUtils.isEmpty(search) || !topologyDir.exists()) {
             returnValue = new ArrayList<>();
         } else {
@@ -225,8 +216,8 @@ public class LogviewerLogSearchHandler {
                 if (!containsPort) {
                     returnValue = new ArrayList<>();
                 } else {
-                    File portDir = new File(rootDir + File.separator + topologyId
-                            + File.separator + port);
+                    File portDir = new File(rootDir + Utils.FILE_PATH_SEPARATOR + topologyId
+                            + Utils.FILE_PATH_SEPARATOR + port);
 
                     if (!portDir.exists() || logsForPort(user, portDir).isEmpty()) {
                         returnValue = new ArrayList<>();
@@ -275,90 +266,96 @@ public class LogviewerLogSearchHandler {
             if (StringUtils.isEmpty(searchString)) {
                 throw new IllegalArgumentException("Precondition fails: search string should not be empty.");
             }
-            if (searchString.getBytes(StandardCharsets.UTF_8).length > GREP_MAX_SEARCH_SIZE) {
+            if (searchString.getBytes("UTF-8").length > GREP_MAX_SEARCH_SIZE) {
                 throw new IllegalArgumentException("Precondition fails: the length of search string should be less than "
-                    + GREP_MAX_SEARCH_SIZE);
+                        + GREP_MAX_SEARCH_SIZE);
             }
 
             boolean isZipFile = file.getName().endsWith(".gz");
-            try (InputStream fis = Files.newInputStream(file.toPath());
-                InputStream gzippedInputStream = isZipFile ? new GZIPInputStream(fis) : fis;
-                BufferedInputStream stream = new BufferedInputStream(gzippedInputStream)) {
+            FileInputStream fis = new FileInputStream(file);
+            InputStream gzippedInputStream;
+            if (isZipFile) {
+                gzippedInputStream = new GZIPInputStream(fis);
+            } else {
+                gzippedInputStream = fis;
+            }
 
-                int fileLength;
-                if (isZipFile) {
-                    fileLength = (int) ServerUtils.zipFileSize(file);
-                } else {
-                    fileLength = (int) file.length();
-                }
+            BufferedInputStream stream = new BufferedInputStream(gzippedInputStream);
 
-                ByteBuffer buf = ByteBuffer.allocate(GREP_BUF_SIZE);
-                final byte[] bufArray = buf.array();
-                final byte[] searchBytes = searchString.getBytes(StandardCharsets.UTF_8);
-                numMatches = numMatches != null ? numMatches : 10;
-                startByteOffset = startByteOffset != null ? startByteOffset : 0;
+            int fileLength;
+            if (isZipFile) {
+                fileLength = (int) ServerUtils.zipFileSize(file);
+            } else {
+                fileLength = (int) file.length();
+            }
 
-                // Start at the part of the log file we are interested in.
-                // Allow searching when start-byte-offset == file-len so it doesn't blow up on 0-length files
-                if (startByteOffset > fileLength) {
-                    throw new InvalidRequestException("Cannot search past the end of the file");
-                }
+            ByteBuffer buf = ByteBuffer.allocate(GREP_BUF_SIZE);
+            final byte[] bufArray = buf.array();
+            final byte[] searchBytes = searchString.getBytes("UTF-8");
+            numMatches = numMatches != null ? numMatches : 10;
+            startByteOffset = startByteOffset != null ? startByteOffset : 0;
 
-                if (startByteOffset > 0) {
-                    StreamUtil.skipBytes(stream, startByteOffset);
-                }
+            // Start at the part of the log file we are interested in.
+            // Allow searching when start-byte-offset == file-len so it doesn't blow up on 0-length files
+            if (startByteOffset > fileLength) {
+                throw new InvalidRequestException("Cannot search past the end of the file");
+            }
 
-                Arrays.fill(bufArray, (byte) 0);
+            if (startByteOffset > 0) {
+                StreamUtil.skipBytes(stream, startByteOffset);
+            }
 
-                int totalBytesRead = 0;
-                int bytesRead = stream.read(bufArray, 0, Math.min((int) fileLength, GREP_BUF_SIZE));
-                buf.limit(bytesRead);
-                totalBytesRead += bytesRead;
+            Arrays.fill(bufArray, (byte) 0);
 
-                List<Map<String, Object>> initialMatches = new ArrayList<>();
-                int initBufOffset = 0;
-                int byteOffset = startByteOffset;
-                byte[] beforeBytes = null;
+            int totalBytesRead = 0;
+            int bytesRead = stream.read(bufArray, 0, Math.min((int) fileLength, GREP_BUF_SIZE));
+            buf.limit(bytesRead);
+            totalBytesRead += bytesRead;
 
-                Map<String, Object> ret = new HashMap<>();
-                while (true) {
-                    SubstringSearchResult searchRet = bufferSubstringSearch(isDaemon, file, fileLength, byteOffset, initBufOffset,
+            List<Map<String, Object>> initialMatches = new ArrayList<>();
+            int initBufOffset = 0;
+            int byteOffset = startByteOffset;
+            byte[] beforeBytes = null;
+
+            Map<String, Object> ret = new HashMap<>();
+            while (true) {
+                SubstringSearchResult searchRet = bufferSubstringSearch(isDaemon, file, fileLength, byteOffset, initBufOffset,
                         stream, startByteOffset, totalBytesRead, buf, searchBytes, initialMatches, numMatches, beforeBytes);
 
-                    List<Map<String, Object>> matches = searchRet.getMatches();
-                    Integer newByteOffset = searchRet.getNewByteOffset();
-                    byte[] newBeforeBytes = searchRet.getNewBeforeBytes();
+                List<Map<String, Object>> matches = searchRet.getMatches();
+                Integer newByteOffset = searchRet.getNewByteOffset();
+                byte[] newBeforeBytes = searchRet.getNewBeforeBytes();
 
-                    if (matches.size() < numMatches && totalBytesRead + startByteOffset < fileLength) {
-                        // The start index is positioned to find any possible
-                        // occurrence search string that did not quite fit in the
-                        // buffer on the previous read.
-                        final int newBufOffset = Math.min(buf.limit(), GREP_MAX_SEARCH_SIZE) - searchBytes.length;
+                if (matches.size() < numMatches && totalBytesRead + startByteOffset < fileLength) {
+                    // The start index is positioned to find any possible
+                    // occurrence search string that did not quite fit in the
+                    // buffer on the previous read.
+                    final int newBufOffset = Math.min(buf.limit(), GREP_MAX_SEARCH_SIZE) - searchBytes.length;
 
-                        totalBytesRead = rotateGrepBuffer(buf, stream, totalBytesRead, file, fileLength);
-                        if (totalBytesRead < 0) {
-                            throw new InvalidRequestException("Cannot search past the end of the file");
-                        }
-
-                        initialMatches = matches;
-                        initBufOffset = newBufOffset;
-                        byteOffset = newByteOffset;
-                        beforeBytes = newBeforeBytes;
-                    } else {
-                        ret.put("isDaemon", isDaemon ? "yes" : "no");
-                        Integer nextByteOffset = null;
-                        if (matches.size() >= numMatches || totalBytesRead < fileLength) {
-                            nextByteOffset = (Integer) last(matches).get("byteOffset") + searchBytes.length;
-                            if (fileLength <= nextByteOffset) {
-                                nextByteOffset = null;
-                            }
-                        }
-                        ret.putAll(mkGrepResponse(searchBytes, startByteOffset, matches, nextByteOffset));
-                        break;
+                    totalBytesRead = rotateGrepBuffer(buf, stream, totalBytesRead, file, fileLength);
+                    if (totalBytesRead < 0) {
+                        throw new InvalidRequestException("Cannot search past the end of the file");
                     }
+
+                    initialMatches = matches;
+                    initBufOffset = newBufOffset;
+                    byteOffset = newByteOffset;
+                    beforeBytes = newBeforeBytes;
+                } else {
+                    ret.put("isDaemon", isDaemon ? "yes" : "no");
+                    Integer nextByteOffset = null;
+                    if (matches.size() >= numMatches || totalBytesRead < fileLength) {
+                        nextByteOffset = (Integer) last(matches).get("byteOffset") + searchBytes.length;
+                        if (fileLength <= nextByteOffset) {
+                            nextByteOffset = null;
+                        }
+                    }
+                    ret.putAll(mkGrepResponse(searchBytes, startByteOffset, matches, nextByteOffset));
+                    break;
                 }
-                return ret;
             }
+
+            return ret;
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -415,13 +412,13 @@ public class LogviewerLogSearchHandler {
             final List<Map<String, Object>> newMatches = new ArrayList<>(matches);
             Map<String, Object> currentFileMatch = new HashMap<>(theseMatches);
             currentFileMatch.put("fileName", fileName);
-            Path firstLogAbsPath;
+            List<String> splitPath;
             try {
-                firstLogAbsPath = firstLog.getCanonicalFile().toPath();
+                splitPath = Arrays.asList(firstLog.getCanonicalPath().split(Utils.FILE_PATH_SEPARATOR));
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
-            currentFileMatch.put("port", truncatePathToLastElements(firstLogAbsPath, 2).getName(0).toString());
+            currentFileMatch.put("port", first(takeLast(splitPath, 2)));
             newMatches.add(currentFileMatch);
 
             int newCount = matchCount + ((List<?>)theseMatches.get("matches")).size();
@@ -480,7 +477,7 @@ public class LogviewerLogSearchHandler {
 
                 bufOffset = offset + needle.length;
                 matches.add(mkMatchData(needle, haystack, offset, fileOffset,
-                        file.getCanonicalFile().toPath(), isDaemon, beforeArg, afterArg));
+                        file.getCanonicalPath(), isDaemon, beforeArg, afterArg));
             } else {
                 int beforeStrToOffset = Math.min(haystack.limit(), GREP_MAX_SEARCH_SIZE);
                 int beforeStrFromOffset = Math.max(0, beforeStrToOffset - GREP_CONTEXT_SIZE);
@@ -518,14 +515,14 @@ public class LogviewerLogSearchHandler {
     }
 
 
-    private Map<String, Object> mkMatchData(byte[] needle, ByteBuffer haystack, int haystackOffset, int fileOffset, Path canonicalPath,
+    private Map<String, Object> mkMatchData(byte[] needle, ByteBuffer haystack, int haystackOffset, int fileOffset, String fname,
                                             boolean isDaemon, byte[] beforeBytes, byte[] afterBytes)
             throws UnsupportedEncodingException, UnknownHostException {
         String url;
         if (isDaemon) {
-            url = urlToMatchCenteredInLogPageDaemonFile(needle, canonicalPath, fileOffset, logviewerPort);
+            url = urlToMatchCenteredInLogPageDaemonFile(needle, fname, fileOffset, logviewerPort);
         } else {
-            url = urlToMatchCenteredInLogPage(needle, canonicalPath, fileOffset, logviewerPort);
+            url = urlToMatchCenteredInLogPage(needle, fname, fileOffset, logviewerPort);
         }
 
         byte[] haystackBytes = haystack.array();
@@ -658,31 +655,33 @@ public class LogviewerLogSearchHandler {
         }
         return ret;
     }
-    
+
     @VisibleForTesting
-    String urlToMatchCenteredInLogPage(byte[] needle, Path canonicalPath, int offset, Integer port) throws UnknownHostException {
+    String urlToMatchCenteredInLogPage(byte[] needle, String fname, int offset, Integer port) throws UnknownHostException {
         final String host = Utils.hostname();
-        final Path truncatedFilePath = truncatePathToLastElements(canonicalPath, 3);
+        String splittedFileName = String.join(Utils.FILE_PATH_SEPARATOR,
+                takeLast(Arrays.asList(fname.split(Utils.FILE_PATH_SEPARATOR)), 3));
 
         Map<String, Object> parameters = new HashMap<>();
-        parameters.put("file", truncatedFilePath.toString());
+        parameters.put("file", splittedFileName);
         parameters.put("start", Math.max(0, offset - (LogviewerConstant.DEFAULT_BYTES_PER_PAGE / 2) - (needle.length / -2)));
         parameters.put("length", LogviewerConstant.DEFAULT_BYTES_PER_PAGE);
 
-        return UrlBuilder.build(String.format(this.scheme + "://%s:%d/api/v1/log", host, port), parameters);
+        return UrlBuilder.build(String.format("http://%s:%d/api/v1/log", host, port), parameters);
     }
 
     @VisibleForTesting
-    String urlToMatchCenteredInLogPageDaemonFile(byte[] needle, Path canonicalPath, int offset, Integer port) throws UnknownHostException {
+    String urlToMatchCenteredInLogPageDaemonFile(byte[] needle, String fname, int offset, Integer port) throws UnknownHostException {
         final String host = Utils.hostname();
-        final Path truncatedFilePath = truncatePathToLastElements(canonicalPath, 1);
+        String splittedFileName = String.join(Utils.FILE_PATH_SEPARATOR,
+                takeLast(Arrays.asList(fname.split(Utils.FILE_PATH_SEPARATOR)), 1));
 
         Map<String, Object> parameters = new HashMap<>();
-        parameters.put("file", truncatedFilePath.toString());
+        parameters.put("file", splittedFileName);
         parameters.put("start", Math.max(0, offset - (LogviewerConstant.DEFAULT_BYTES_PER_PAGE / 2) - (needle.length / -2)));
         parameters.put("length", LogviewerConstant.DEFAULT_BYTES_PER_PAGE);
 
-        return UrlBuilder.build(String.format(this.scheme + "://%s:%d/api/v1/daemonlog", host, port), parameters);
+        return UrlBuilder.build(String.format("http://%s:%d/api/v1/daemonlog", host, port), parameters);
     }
 
     @VisibleForTesting

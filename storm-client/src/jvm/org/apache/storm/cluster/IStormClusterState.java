@@ -99,9 +99,9 @@ public interface IStormClusterState {
 
     public void supervisorHeartbeat(String supervisorId, SupervisorInfo info);
 
-    public void workerBackpressure(String stormId, String node, Long port, long timestamp);
+    public void workerBackpressure(String stormId, String node, Long port, boolean on);
 
-    public boolean topologyBackpressure(String stormId, long timeoutMs, Runnable callback);
+    public boolean topologyBackpressure(String stormId, Runnable callback);
 
     public void setupBackpressure(String stormId);
 
@@ -168,8 +168,8 @@ public interface IStormClusterState {
     default Optional<String> getTopoId(final String topologyName) {
         String ret = null;
         for (String topoId: activeStorms()) {
-            StormBase base = stormBase(topoId, null);
-            if(base != null && topologyName.equals(base.get_name())) {
+            String name = stormBase(topoId, null).get_name();
+            if (topologyName.equals(name)) {
                 ret = topoId;
                 break;
             }

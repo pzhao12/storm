@@ -42,7 +42,6 @@ import java.util.stream.Stream;
 
 import org.apache.storm.daemon.supervisor.ClientSupervisorUtils;
 import org.apache.storm.daemon.supervisor.SupervisorUtils;
-import org.apache.storm.daemon.utils.PathUtil;
 import org.apache.storm.utils.ObjectReader;
 import org.apache.storm.utils.Time;
 import org.apache.storm.utils.Utils;
@@ -208,7 +207,10 @@ public class WorkerLogs {
      */
     public static String getTopologyPortWorkerLog(File file) {
         try {
-            return PathUtil.truncatePathToLastElements(file.getCanonicalFile().toPath(), 3).toString();
+            String[] splitted = file.getCanonicalPath().split(Utils.FILE_PATH_SEPARATOR);
+            List<String> split = takeLast(Arrays.asList(splitted), 3);
+
+            return String.join(Utils.FILE_PATH_SEPARATOR, split);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

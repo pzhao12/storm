@@ -22,10 +22,10 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
 import org.apache.storm.daemon.nimbus.TopologyResources;
 import org.apache.storm.generated.WorkerResources;
-import org.apache.storm.scheduler.resource.normalization.NormalizedResourceOffer;
-import org.apache.storm.scheduler.resource.normalization.NormalizedResourceRequest;
+import org.apache.storm.scheduler.Cluster.SupervisorResources;
 
 /** An interface that provides access to the current scheduling state. */
 public interface ISchedulingState {
@@ -43,7 +43,7 @@ public interface ISchedulingState {
     List<TopologyDetails> needsSchedulingTopologies();
 
     /**
-     * Does the topology need scheduling.
+     * Does the topology need scheduling?
      *
      * <p>A topology needs scheduling if one of the following conditions holds:
      *
@@ -103,14 +103,12 @@ public interface ISchedulingState {
     Collection<ExecutorDetails> getUnassignedExecutors(TopologyDetails topology);
 
     /**
-     * Get the executor to component name map for executors that need to be scheduled.
      * @param topology the topology this is for
      * @return a executor -> component-id map which needs scheduling in this topology.
      */
     Map<ExecutorDetails, String> getNeedsSchedulingExecutorToComponents(TopologyDetails topology);
 
     /**
-     * Get the component name to executor list for executors that need to be scheduled.
      * @param topology the topology this is for
      * @return a component-id -> executors map which needs scheduling in this topology.
      */
@@ -172,16 +170,18 @@ public interface ISchedulingState {
      * @param ws the slot to put it in
      * @param exec the executor to investigate
      * @param td the topology detains for this executor
-     * @param resourcesAvailable all the available resources
      * @param maxHeap the maximum heap size for ws
+     * @param memoryAvailable the amount of memory available
+     * @param cpuAvailable the amount of CPU available
      * @return true it fits else false
      */
     boolean wouldFit(
         WorkerSlot ws,
         ExecutorDetails exec,
         TopologyDetails td,
-        NormalizedResourceOffer resourcesAvailable,
-        double maxHeap);
+        double maxHeap,
+        double memoryAvailable,
+        double cpuAvailable);
 
     /** get the current assignment for the topology. */
     SchedulerAssignment getAssignmentById(String topologyId);
@@ -205,9 +205,6 @@ public interface ISchedulingState {
 
     /** Get all the supervisors. */
     Map<String, SupervisorDetails> getSupervisors();
-
-    /** Get all scheduled resources for node. **/
-    NormalizedResourceRequest getAllScheduledResourcesForNode(String nodeId);
 
     /** Get the total amount of CPU resources in cluster. */
     double getClusterTotalCpuResource();

@@ -61,6 +61,59 @@
                                                                 (is (Time/isSimulating)))))
     (is (not (Time/isSimulating)))))
 
+(def complete-topology-testjob
+  (reify TestJob
+       (^void run [this ^ILocalCluster cluster]
+         (let [topology (Thrift/buildTopology
+                         {"1" (Thrift/prepareSpoutDetails (TestWordSpout. true) (Integer. 3))}
+                         {"2" (Thrift/prepareBoltDetails
+                                {(GlobalStreamId. "1" Utils/DEFAULT_STREAM_ID)
+                                 (Thrift/prepareFieldsGrouping ["word"])}
+                                (TestWordCounter.) (Integer. 4))
+                          "3" (Thrift/prepareBoltDetails
+                                {(GlobalStreamId. "1" Utils/DEFAULT_STREAM_ID)
+                                 (Thrift/prepareGlobalGrouping)}
+                                (TestGlobalCount.))
+                          "4" (Thrift/prepareBoltDetails
+                                {(GlobalStreamId. "2" Utils/DEFAULT_STREAM_ID)
+                                 (Thrift/prepareGlobalGrouping)}
+                                (TestAggregatesCounter.))})
+               mocked-sources (doto (MockedSources.)
+                                (.addMockData "1" (into-array Values [(Values. (into-array ["nathan"]))
+                                                                      (Values. (into-array ["bob"]))
+                                                                      (Values. (into-array ["joey"]))
+                                                                      (Values. (into-array ["nathan"]))])
+                                              ))
+               storm-conf (doto (Config.)
+                            (.setNumWorkers 2))
+               complete-topology-param (doto (CompleteTopologyParam.)
+                                         (.setMockedSources mocked-sources)
+                                         (.setStormConf storm-conf))
+               results (Testing/completeTopology cluster
+                                                 topology
+                                                 complete-topology-param)]
+           (is (Testing/multiseteq [["nathan"] ["bob"] ["joey"] ["nathan"]]
+                           (Testing/readTuples results "1")))
+           (is (Testing/multiseteq [["nathan" (int 1)] ["nathan" (int 2)] ["bob" (int 1)] ["joey" (int 1)]]
+                           (Testing/readTuples results "2")))
+           (is (= [[1] [2] [3] [4]]
+                  (Testing/readTuples results "3")))
+           (is (= [[1] [2] [3] [4]]
+                  (Testing/readTuples results "4")))
+           ))))
+
+(deftest test-complete-topology
+  (doseq [zmq-on? [true false]
+          :let [daemon-conf (doto (Config.)
+                              (.put STORM-LOCAL-MODE-ZMQ zmq-on?))
+                mk-cluster-param (doto (MkClusterParam.)
+                                   (.setSupervisors (int 4))
+                                   (.setDaemonConf daemon-conf))]]
+    (Testing/withSimulatedTimeLocalCluster
+      mk-cluster-param complete-topology-testjob )
+    (Testing/withLocalCluster
+      mk-cluster-param complete-topology-testjob)))
+
 (deftest test-with-tracked-cluster
   (Testing/withTrackedCluster
    (reify TestJob

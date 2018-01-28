@@ -90,10 +90,6 @@ public class ClientBlobStoreTest {
     }
 
     @Override
-    public void close() {
-    }
-
-    @Override
     public int getBlobReplication(String key) {
       return -1;
     }
@@ -170,8 +166,8 @@ public class ClientBlobStoreTest {
 
   @Test
   public void testBloblStoreKeyWithUnicodesValidation() throws Exception {
-    BlobStore.validateKey("msg-kafka-unicodewriter䶵-11-1483434711-stormconf.ser");
-    BlobStore.validateKey("msg-kafka-ascii-11-148343436363-stormconf.ser");
+    BlobStore.validateKey("msg:kafka-unicodewriter䶵-11-1483434711-stormconf.ser");
+    BlobStore.validateKey("msg:kafka-ascii-11-148343436363-stormconf.ser");
   }
 
   private void createTestBlob(String testKey, SettableBlobMeta meta) throws AuthorizationException, KeyAlreadyExistsException {

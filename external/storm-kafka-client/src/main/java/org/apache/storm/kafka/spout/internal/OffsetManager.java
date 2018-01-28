@@ -16,14 +16,11 @@
 
 package org.apache.storm.kafka.spout.internal;
 
-import com.google.common.annotations.VisibleForTesting;
-
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.NavigableSet;
-import java.util.NoSuchElementException;
 import java.util.TreeSet;
-
+import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.storm.kafka.spout.KafkaSpoutMessageId;
@@ -34,29 +31,30 @@ import org.slf4j.LoggerFactory;
  * Manages acked and committed offsets for a TopicPartition. This class is not thread safe
  */
 public class OffsetManager {
+
     private static final Comparator<KafkaSpoutMessageId> OFFSET_COMPARATOR = new OffsetComparator();
     private static final Logger LOG = LoggerFactory.getLogger(OffsetManager.class);
-
     private final TopicPartition tp;
+    /* First offset to be fetched. It is either set to the beginning, end, or to the first uncommitted offset.
+    * Initial value depends on offset strategy. See KafkaSpoutConsumerRebalanceListener */
+    private final long initialFetchOffset;
+    // Last offset committed to Kafka. Initially it is set to fetchOffset - 1
+    private long committedOffset;
     // Emitted Offsets List
     private final NavigableSet<Long> emittedOffsets = new TreeSet<>();
     // Acked messages sorted by ascending order of offset
     private final NavigableSet<KafkaSpoutMessageId> ackedMsgs = new TreeSet<>(OFFSET_COMPARATOR);
-    // Committed offset, i.e. the offset where processing will resume upon spout restart. Initially it is set to fetchOffset.
-    private long committedOffset;
-    // True if this OffsetManager has made at least one commit to Kafka
-    private boolean committed;
-    private long latestEmittedOffset;
 
     /**
      * Creates a new OffsetManager.
-     * @param tp The TopicPartition
+     * @param tp The TopicPartition 
      * @param initialFetchOffset The initial fetch offset for the given TopicPartition
      */
     public OffsetManager(TopicPartition tp, long initialFetchOffset) {
         this.tp = tp;
-        this.committedOffset = initialFetchOffset;
-        LOG.debug("Instantiated {}", this.toString());
+        this.initialFetchOffset = initialFetchOffset;
+        this.committedOffset = initialFetchOffset - 1;
+        LOG.debug("Instantiated {}", this);
     }
 
     public void addToAckMsgs(KafkaSpoutMessageId msgId) {          // O(Log N)
@@ -64,117 +62,87 @@ public class OffsetManager {
     }
 
     public void addToEmitMsgs(long offset) {
-        this.emittedOffsets.add(offset);  // O(Log N)
-        this.latestEmittedOffset = Math.max(latestEmittedOffset, offset);
-    }
-    
-    public int getNumUncommittedOffsets() {
-        return this.emittedOffsets.size();
-    }
-    
-    /**
-     * Gets the offset of the nth emitted message after the committed offset. 
-     * Example: If the committed offset is 0 and offsets 1, 2, 8, 10 have been emitted,
-     * getNthUncommittedOffsetAfterCommittedOffset(3) returns 8.
-     * 
-     * @param index The index of the message to get the offset for
-     * @return The offset
-     * @throws NoSuchElementException if the index is out of range
-     */
-    public long getNthUncommittedOffsetAfterCommittedOffset(int index) {
-        Iterator<Long> offsetIter = emittedOffsets.iterator();
-        for (int i = 0; i < index - 1; i++) {
-            offsetIter.next();
-        }
-        return offsetIter.next();
+        this.emittedOffsets.add(offset);                  // O(Log N)
     }
 
     /**
-     * An offset can only be committed when all emitted records with lower offset have been
+     * An offset is only committed when all records with lower offset have been
      * acked. This guarantees that all offsets smaller than the committedOffset
-     * have been delivered, or that those offsets no longer exist in Kafka. 
-     * <p/>
-     * The returned offset points to the earliest uncommitted offset, and matches the semantics of the KafkaConsumer.commitSync API.
+     * have been delivered.
      *
-     * @param commitMetadata Metadata information to commit to Kafka. It is constant per KafkaSpout instance per topology
      * @return the next OffsetAndMetadata to commit, or null if no offset is
      *     ready to commit.
      */
-    public OffsetAndMetadata findNextCommitOffset(final String commitMetadata) {
-        boolean found = false;
+    public OffsetAndMetadata findNextCommitOffset() {
         long currOffset;
         long nextCommitOffset = committedOffset;
+        KafkaSpoutMessageId nextCommitMsg = null;     // this is a convenience variable to make it faster to create OffsetAndMetadata
 
         for (KafkaSpoutMessageId currAckedMsg : ackedMsgs) {  // complexity is that of a linear scan on a TreeMap
             currOffset = currAckedMsg.offset();
-            if (currOffset == nextCommitOffset) {
-                // found the next offset to commit
-                found = true;
-                nextCommitOffset = currOffset + 1;
-            } else if (currOffset > nextCommitOffset) {
-                if (emittedOffsets.contains(nextCommitOffset)) {
-                    LOG.debug("topic-partition [{}] has non-sequential offset [{}]."
+            if (currOffset == nextCommitOffset + 1) {            // found the next offset to commit
+                nextCommitMsg = currAckedMsg;
+                nextCommitOffset = currOffset;
+            } else if (currOffset > nextCommitOffset + 1) {
+                if (emittedOffsets.contains(nextCommitOffset + 1)) {
+                    LOG.debug("topic-partition [{}] has non-continuous offset [{}]."
                         + " It will be processed in a subsequent batch.", tp, currOffset);
                     break;
                 } else {
                     /*
-                        This case will arise in case of non-sequential offset being processed.
-                        So, if the topic doesn't contain offset = nextCommitOffset (possible
+                        This case will arise in case of non contiguous offset being processed.
+                        So, if the topic doesn't contain offset = committedOffset + 1 (possible
                         if the topic is compacted or deleted), the consumer should jump to
                         the next logical point in the topic. Next logical offset should be the
-                        first element after nextCommitOffset in the ascending ordered emitted set.
+                        first element after committedOffset in the ascending ordered emitted set.
                      */
-                    LOG.debug("Processed non-sequential offset."
-                        + " The earliest uncommitted offset is no longer part of the topic."
-                        + " Missing offset: [{}], Processed: [{}]", nextCommitOffset, currOffset);
+                    LOG.debug("Processed non contiguous offset."
+                        + " (committedOffset+1) is no longer part of the topic."
+                        + " Committed: [{}], Processed: [{}]", committedOffset, currOffset);
                     final Long nextEmittedOffset = emittedOffsets.ceiling(nextCommitOffset);
                     if (nextEmittedOffset != null && currOffset == nextEmittedOffset) {
-                        LOG.debug("Found committable offset: [{}] after missing offset: [{}], skipping to the committable offset",
-                            currOffset, nextCommitOffset);
-                        nextCommitOffset = currOffset + 1;
+                        nextCommitMsg = currAckedMsg;
+                        nextCommitOffset = currOffset;
                     } else {
-                        LOG.debug("Topic-partition [{}] has non-sequential offset [{}]."
-                            + " Next offset to commit should be [{}]", tp, currOffset, nextCommitOffset);
+                        LOG.debug("topic-partition [{}] has non-continuous offset [{}]."
+                            + " Next Offset to commit should be [{}]", tp, currOffset, nextEmittedOffset);
                         break;
                     }
                 }
             } else {
-                throw new IllegalStateException("The offset [" + currOffset + "] is below the current nextCommitOffset "
-                    + "[" + nextCommitOffset + "] for [" + tp + "]."
-                    + " This should not be possible, and likely indicates a bug in the spout's acking or emit logic.");
+                //Received a redundant ack. Ignore and continue processing.
+                LOG.warn("topic-partition [{}] has unexpected offset [{}]. Current committed Offset [{}]",
+                    tp, currOffset, committedOffset);
             }
         }
 
         OffsetAndMetadata nextCommitOffsetAndMetadata = null;
-        if (found) {
-            nextCommitOffsetAndMetadata = new OffsetAndMetadata(nextCommitOffset, commitMetadata);
-
-            LOG.debug("Topic-partition [{}] has offsets [{}-{}] ready to be committed."
-                + " Processing will resume at offset [{}] upon spout restart",
-                tp, committedOffset, nextCommitOffsetAndMetadata.offset() - 1, nextCommitOffsetAndMetadata.offset());
+        if (nextCommitMsg != null) {
+            nextCommitOffsetAndMetadata = new OffsetAndMetadata(nextCommitOffset, nextCommitMsg.getMetadata(Thread.currentThread()));
+            LOG.debug("topic-partition [{}] has offsets [{}-{}] ready to be committed",
+                tp, committedOffset + 1, nextCommitOffsetAndMetadata.offset());
         } else {
-            LOG.debug("Topic-partition [{}] has no offsets ready to be committed", tp);
+            LOG.debug("topic-partition [{}] has NO offsets ready to be committed", tp);
         }
         LOG.trace("{}", this);
         return nextCommitOffsetAndMetadata;
     }
 
     /**
-     * Marks an offset as committed. This method has side effects - it sets the
+     * Marks an offset has committed. This method has side effects - it sets the
      * internal state in such a way that future calls to
-     * {@link #findNextCommitOffset(String)} will return offsets greater than or equal to the
+     * {@link #findNextCommitOffset()} will return offsets greater than the
      * offset specified, if any.
      *
-     * @param committedOffsetAndMeta The committed offset. All lower offsets are expected to have been committed.
+     * @param committedOffset offset to be marked as committed
      * @return Number of offsets committed in this commit
      */
-    public long commit(OffsetAndMetadata committedOffsetAndMeta) {
-        committed = true;
-        final long preCommitCommittedOffset = this.committedOffset;
+    public long commit(OffsetAndMetadata committedOffset) {
+        final long preCommitCommittedOffsets = this.committedOffset;
         long numCommittedOffsets = 0;
-        this.committedOffset = committedOffsetAndMeta.offset();
+        this.committedOffset = committedOffset.offset();
         for (Iterator<KafkaSpoutMessageId> iterator = ackedMsgs.iterator(); iterator.hasNext();) {
-            if (iterator.next().offset() < committedOffsetAndMeta.offset()) {
+            if (iterator.next().offset() <= committedOffset.offset()) {
                 iterator.remove();
                 numCommittedOffsets++;
             } else {
@@ -183,7 +151,7 @@ public class OffsetManager {
         }
 
         for (Iterator<Long> iterator = emittedOffsets.iterator(); iterator.hasNext();) {
-            if (iterator.next() < committedOffsetAndMeta.offset()) {
+            if (iterator.next() <= committedOffset.offset()) {
                 iterator.remove();
             } else {
                 break;
@@ -192,47 +160,36 @@ public class OffsetManager {
 
         LOG.trace("{}", this);
         
-        LOG.debug("Committed [{}] offsets in the range [{}-{}] for topic-partition [{}]."
-            + " Processing will resume at [{}] upon spout restart",
-                numCommittedOffsets, preCommitCommittedOffset, this.committedOffset - 1, tp, this.committedOffset);
+        LOG.debug("Committed [{}] offsets in the range [{}-{}] for topic-partition [{}].",
+                numCommittedOffsets, preCommitCommittedOffsets + 1, this.committedOffset, tp);
         
         return numCommittedOffsets;
-    }
-
-    /**
-     * Checks if this OffsetManager has committed to Kafka.
-     *
-     * @return true if this OffsetManager has made at least one commit to Kafka, false otherwise
-     */
-    public boolean hasCommitted() {
-        return committed;
-    }
-
-    public boolean contains(KafkaSpoutMessageId msgId) {
-        return ackedMsgs.contains(msgId);
-    }
-
-    @VisibleForTesting
-    boolean containsEmitted(long offset) {
-        return emittedOffsets.contains(offset);
-    }
-
-    public long getLatestEmittedOffset() {
-        return latestEmittedOffset;
     }
 
     public long getCommittedOffset() {
         return committedOffset;
     }
 
+    public boolean isEmpty() {
+        return ackedMsgs.isEmpty();
+    }
+
+    public boolean contains(ConsumerRecord record) {
+        return contains(new KafkaSpoutMessageId(record));
+    }
+
+    public boolean contains(KafkaSpoutMessageId msgId) {
+        return ackedMsgs.contains(msgId);
+    }
+
     @Override
-    public final String toString() {
+    public String toString() {
         return "OffsetManager{"
             + "topic-partition=" + tp
+            + ", fetchOffset=" + initialFetchOffset
             + ", committedOffset=" + committedOffset
             + ", emittedOffsets=" + emittedOffsets
             + ", ackedMsgs=" + ackedMsgs
-            + ", latestEmittedOffset=" + latestEmittedOffset
             + '}';
     }
 

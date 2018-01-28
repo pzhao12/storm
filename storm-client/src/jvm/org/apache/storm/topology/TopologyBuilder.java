@@ -46,6 +46,7 @@ import org.apache.storm.tuple.Tuple;
 import org.apache.storm.utils.Utils;
 import org.apache.storm.windowing.TupleWindow;
 import org.json.simple.JSONValue;
+import org.json.simple.parser.ParseException;
 
 import java.io.NotSerializableException;
 import java.nio.ByteBuffer;
@@ -58,7 +59,6 @@ import java.util.Set;
 
 import static org.apache.storm.spout.CheckpointSpout.CHECKPOINT_COMPONENT_ID;
 import static org.apache.storm.spout.CheckpointSpout.CHECKPOINT_STREAM_ID;
-import static org.apache.storm.utils.Utils.parseJson;
 
 /**
  * TopologyBuilder exposes the Java API for specifying a topology for Storm
@@ -115,7 +115,7 @@ import static org.apache.storm.utils.Utils.parseJson;
 public class TopologyBuilder {
     private final Map<String, IRichBolt> _bolts = new HashMap<>();
     private final Map<String, IRichSpout> _spouts = new HashMap<>();
-    private final Map<String, ComponentCommon> commons = new HashMap<>();
+    private final Map<String, ComponentCommon> _commons = new HashMap<>();
     private final Map<String, Set<String>> _componentToSharedMemory = new HashMap<>();
     private final Map<String, SharedMemory> _sharedMemory = new HashMap<>();
     private boolean hasStatefulBolt = false;
@@ -541,7 +541,7 @@ public class TopologyBuilder {
     }
 
     private ComponentCommon getComponentCommon(String id, IComponent component) {
-        ComponentCommon ret = new ComponentCommon(commons.get(id));
+        ComponentCommon ret = new ComponentCommon(_commons.get(id));
         OutputFieldsGetter getter = new OutputFieldsGetter();
         component.declareOutputFields(getter);
         ret.set_streams(getter.getFieldsDeclaration());
@@ -560,56 +560,27 @@ public class TopologyBuilder {
         }
         Map<String, Object> conf = component.getComponentConfiguration();
         if(conf!=null) common.set_json_conf(JSONValue.toJSONString(conf));
-        commons.put(id, common);
+        _commons.put(id, common);
     }
 
     protected class ConfigGetter<T extends ComponentConfigurationDeclarer> extends BaseConfigurationDeclarer<T> {
-        String id;
+        String _id;
         
         public ConfigGetter(String id) {
-            this.id = id;
+            _id = id;
         }
         
         @SuppressWarnings("unchecked")
         @Override
         public T addConfigurations(Map<String, Object> conf) {
-            if (conf != null) {
-                if (conf.containsKey(Config.TOPOLOGY_KRYO_REGISTER)) {
-                    throw new IllegalArgumentException("Cannot set serializations for a component using fluent API");
-                }
-                if (!conf.isEmpty()) {
-                    String currConf = commons.get(id).get_json_conf();
-                    commons.get(id).set_json_conf(mergeIntoJson(parseJson(currConf), conf));
-                }
+            if(conf!=null && conf.containsKey(Config.TOPOLOGY_KRYO_REGISTER)) {
+                throw new IllegalArgumentException("Cannot set serializations for a component using fluent API");
             }
+            String currConf = _commons.get(_id).get_json_conf();
+            _commons.get(_id).set_json_conf(mergeIntoJson(parseJson(currConf), conf));
             return (T) this;
         }
-
-        @Override
-        public T addResources(Map<String, Double> resources) {
-            if (resources != null && !resources.isEmpty()) {
-                String currConf = commons.get(id).get_json_conf();
-                Map<String, Object> conf = parseJson(currConf);
-                Map<String, Double> currentResources =
-                    (Map<String, Double>) conf.computeIfAbsent(Config.TOPOLOGY_COMPONENT_RESOURCES_MAP, (k) -> new HashMap<>());
-                currentResources.putAll(resources);
-                commons.get(id).set_json_conf(JSONValue.toJSONString(conf));
-            }
-            return (T) this;
-        }
-
-        @SuppressWarnings("unchecked")
-        @Override
-        public T addResource(String resourceName, Number resourceValue) {
-            Map<String, Object> componentConf = parseJson(commons.get(id).get_json_conf());
-            Map<String, Double> resourcesMap = (Map<String, Double>) componentConf.computeIfAbsent(
-                    Config.TOPOLOGY_COMPONENT_RESOURCES_MAP, (k) -> new HashMap<>());
-
-            resourcesMap.put(resourceName, resourceValue.doubleValue());
-
-            return addConfiguration(Config.TOPOLOGY_COMPONENT_RESOURCES_MAP, resourcesMap);
-        }
-
+        
         @SuppressWarnings("unchecked")
         @Override
         public T addSharedMemory(SharedMemory request) {
@@ -618,7 +589,7 @@ public class TopologyBuilder {
                 throw new IllegalArgumentException("Cannot have multiple different shared memory regions with the same name");
             }
             _sharedMemory.put(request.get_name(), request);
-            Set<String> mems = _componentToSharedMemory.computeIfAbsent(id, (k) -> new HashSet<>());
+            Set<String> mems = _componentToSharedMemory.computeIfAbsent(_id, (k) -> new HashSet<>());
             mems.add(request.get_name());
             return (T) this;
         }
@@ -695,7 +666,7 @@ public class TopologyBuilder {
         }
 
         private BoltDeclarer grouping(String componentId, String streamId, Grouping grouping) {
-            commons.get(_boltId).put_to_inputs(new GlobalStreamId(componentId, streamId), grouping);
+            _commons.get(_boltId).put_to_inputs(new GlobalStreamId(componentId, streamId), grouping);
             return this;
         }
 
@@ -724,10 +695,22 @@ public class TopologyBuilder {
             return grouping(id.get_componentId(), id.get_streamId(), grouping);
         }        
     }
-
+    
+    private static Map parseJson(String json) {
+        if (json==null) {
+            return new HashMap();
+        } else {
+            try {
+                return (Map) JSONValue.parseWithException(json);
+            } catch (ParseException e) {
+                throw new RuntimeException(e);
+            }
+        }
+    }
+    
     private static String mergeIntoJson(Map into, Map newMap) {
-        Map res = new HashMap<>(into);
-        res.putAll(newMap);
+        Map res = new HashMap(into);
+        if(newMap!=null) res.putAll(newMap);
         return JSONValue.toJSONString(res);
     }
 }

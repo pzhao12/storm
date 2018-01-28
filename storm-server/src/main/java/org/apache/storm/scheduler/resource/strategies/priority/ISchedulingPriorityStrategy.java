@@ -18,7 +18,6 @@
 
 package org.apache.storm.scheduler.resource.strategies.priority;
 
-import java.util.List;
 import java.util.Map;
 
 import org.apache.storm.scheduler.ISchedulingState;
@@ -26,10 +25,9 @@ import org.apache.storm.scheduler.TopologyDetails;
 import org.apache.storm.scheduler.resource.User;
 
 public interface ISchedulingPriorityStrategy {
-
     /**
-     * Prioritize the list of all topologies in the cluster.
-     * @return ordered list of topologies to schedule.
+     * Gets the next topology to schedule
+     * @return return the next topology to schedule.  If there is no topologies left to schedule, return null
      */
-    List<TopologyDetails> getOrderedTopologies(ISchedulingState schedulingState, Map<String, User> userMap);
+    public TopologyDetails getNextTopologyToSchedule(ISchedulingState schedulingState, Map<String, User> userMap);
 }

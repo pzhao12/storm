@@ -31,7 +31,6 @@ import org.apache.storm.task.TopologyContext;
 import org.apache.storm.tuple.AddressedTuple;
 import org.apache.storm.tuple.TupleImpl;
 import org.apache.storm.tuple.Values;
-import org.apache.storm.utils.DisruptorQueue;
 import org.apache.storm.utils.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -45,16 +44,11 @@ public class ExecutorShutdown implements Shutdownable, IRunningExecutor {
     private final Executor executor;
     private final List<Utils.SmartThread> threads;
     private final Map<Integer, Task> taskDatas;
-    private final DisruptorQueue receiveQueue;
-    private final DisruptorQueue sendQueue;
 
-    public ExecutorShutdown(Executor executor, List<Utils.SmartThread> threads, Map<Integer, Task> taskDatas,
-                            DisruptorQueue receiveQueue, DisruptorQueue sendQueue) {
+    public ExecutorShutdown(Executor executor, List<Utils.SmartThread> threads, Map<Integer, Task> taskDatas) {
         this.executor = executor;
         this.threads = threads;
         this.taskDatas = taskDatas;
-        this.receiveQueue = receiveQueue;
-        this.sendQueue = sendQueue;
     }
 
     @Override
@@ -83,16 +77,6 @@ public class ExecutorShutdown implements Shutdownable, IRunningExecutor {
     @Override
     public boolean getBackPressureFlag() {
         return executor.getBackpressure();
-    }
-
-    @Override
-    public DisruptorQueue getReceiveQueue() {
-        return receiveQueue;
-    }
-
-    @Override
-    public DisruptorQueue getSendQueue() {
-        return sendQueue;
     }
 
     @Override

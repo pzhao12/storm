@@ -25,7 +25,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Serializable;
-import java.time.Duration;
 
 
 public class TestBolt extends BaseBasicBolt {
@@ -86,8 +85,6 @@ public class TestBolt extends BaseBasicBolt {
 
     }
 
-    public TestBolt(Long l){}
-
     @Override
     public void execute(Tuple tuple, BasicOutputCollector basicOutputCollector) {
         LOG.info("{}", tuple);
@@ -117,14 +114,6 @@ public class TestBolt extends BaseBasicBolt {
         this.classes = classes;
     }
 
-    public void setTimeLen(Duration x) { x.toMillis(); }
-    public void setTimeLenArr(Duration[] x) { x.toString(); }
-
-    public void withDuration(Duration x) { x.toMillis(); }
-
-    public void withDurationArr(Duration[] x) { x.toString(); }
-
-
     public String getFoo(){
         return this.foo;
     }
@@ -138,14 +127,5 @@ public class TestBolt extends BaseBasicBolt {
 
     public TestClass[] getClasses() {
         return classes;
-    }
-
-    // Factory methods
-    public static TestBolt newInstance() {
-        return newInstance(TestEnum.FOO);
-    }
-
-    public static TestBolt newInstance(TestEnum te){
-        return new TestBolt(te);
     }
 }

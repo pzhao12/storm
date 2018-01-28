@@ -1,41 +1,51 @@
-#  Licensed under the Apache License, Version 2.0 (the "License");
-#  you may not use this file except in compliance with the License.
-#  You may obtain a copy of the License at
-#
-#    http://www.apache.org/licenses/LICENSE-2.0
-#
-#  Unless required by applicable law or agreed to in writing, software
-#  distributed under the License is distributed on an "AS IS" BASIS,
-#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-#  See the License for the specific language governing permissions and
-#  limitations under the License.
 addons:
   hosts:
-    - node1
-
-env:
-  - MODULES=storm-client
-  - MODULES=storm-server
-  - MODULES=storm-core
-  - MODULES='!storm-client,!storm-server,!storm-core'
-  - MODULES='INTEGRATION-TEST'
-
-dist: trusty
-sudo: required
-
-language: java
-jdk:
-  - oraclejdk8
+  - node1
+before_cache:
+- rm -rf $HOME/CACHE; find $TRAVIS_BUILD_DIR -name .ekstazi | while read line; do
+  du -sh $line;         DIR=$(dirname $HOME/CACHE$line); mkdir -p $DIR; cp -r $line
+  $DIR; done
+- echo CACHESIZE $(du -sk $HOME/CACHE)
 before_install:
-  - rvm reload
-  - rvm use 2.4.2 --install
-  - nvm install 8.9.3
-  - nvm use 8.9.3
-install: /bin/bash ./dev-tools/travis/travis-install.sh `pwd`
-script:
-  - /bin/bash ./dev-tools/travis/travis-script.sh `pwd` $MODULES
+- if [ "$TRAVIS_OS_NAME" == "osx" ];        then sed -i '' 's/<gib.enabled>true/<gib.enabled>false/'
+  $TRAVIS_BUILD_DIR/pom.xml;        else sed -i 's/<gib.enabled>true/<gib.enabled>false/'
+  $TRAVIS_BUILD_DIR/pom.xml;        fi
+- find $HOME/CACHE -name .ekstazi | while read line; do du -sh $line;         DIR=$(dirname
+  ${line#$HOME/CACHE}); if [[ -d ${DIR#.ekstazi/} ]]; then cp -r $line $DIR; fi; done
+- rvm use 2.1.5 --install
+- nvm install 0.12.2
+- nvm use 0.12.2
+before_script:
+- find $TRAVIS_BUILD_DIR -name .ekstazi | while read line; do rm -rf $line; done
+- find $HOME/CACHE -name .ekstazi | while read line; do du -sh $line;         DIR=$(dirname
+  ${line#$HOME/CACHE}); if [[ -d ${DIR#.ekstazi/} ]]; then cp -r $line $DIR; fi; done
+- if [ "$TRAVIS_OS_NAME" == "osx" ];    then sed -i '' 's/<gib.enabled>false/<gib.enabled>true/'
+  $TRAVIS_BUILD_DIR/pom.xml;    else sed -i 's/<gib.enabled>false/<gib.enabled>true/'
+  $TRAVIS_BUILD_DIR/pom.xml;    fi
 cache:
   directories:
-    - "$HOME/.m2/repository"
-    - "$HOME/.rvm"
-    - "$NVM_DIR"
+  - $HOME/.m2/repository
+  - $HOME/.rvm
+  - $NVM_DIR
+  - $HOME/CACHE
+dist: trusty
+env:
+- MODULES=storm-client
+- MODULES=storm-server
+- MODULES=storm-core
+- MODULES='!storm-client,!storm-server,!storm-core'
+- MODULES='INTEGRATION-TEST'
+install: /bin/bash ./dev-tools/travis/travis-install.sh `pwd`
+jdk:
+- oraclejdk8
+language: java
+script:
+- touch NOW
+- echo GIBSTUDYSTART $(date)
+- /bin/bash ./dev-tools/travis/travis-script.sh `pwd` $MODULES
+- echo GIBSTUDYEND $(date)
+- cd $TRAVIS_BUILD_DIR
+- if [ "$TRAVIS_OS_NAME" == "osx" ];        then echo TESTNUM $(find . -name TEST-*.xml
+  -newer NOW | wc -l);        else echo TESTNUM $(find -name TEST-*.xml -newer NOW
+  | wc -l);        fi
+sudo: true

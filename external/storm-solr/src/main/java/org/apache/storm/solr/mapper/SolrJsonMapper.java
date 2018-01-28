@@ -18,8 +18,7 @@
 
 package org.apache.storm.solr.mapper;
 
-import java.util.List;
-
+import org.apache.storm.tuple.ITuple;
 import com.google.gson.Gson;
 import org.apache.solr.client.solrj.SolrClient;
 import org.apache.solr.client.solrj.SolrRequest;
@@ -27,9 +26,10 @@ import org.apache.solr.client.solrj.impl.CloudSolrClient;
 import org.apache.solr.client.solrj.request.ContentStreamUpdateRequest;
 import org.apache.solr.common.util.ContentStream;
 import org.apache.solr.common.util.ContentStreamBase;
-import org.apache.storm.tuple.ITuple;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.List;
 
 public class SolrJsonMapper implements SolrMapper {
     private static final Logger logger = LoggerFactory.getLogger(SolrJsonMapper.class);

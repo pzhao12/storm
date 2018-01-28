@@ -17,9 +17,6 @@
  */
 package org.apache.storm.daemon.supervisor;
 
-import static org.hamcrest.CoreMatchers.is;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.lessThan;
 import static org.junit.Assert.*;
 import static org.mockito.Mockito.*;
 
@@ -28,7 +25,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.storm.daemon.supervisor.Slot.StaticState;
@@ -42,21 +39,14 @@ import org.apache.storm.generated.NodeInfo;
 import org.apache.storm.generated.ProfileAction;
 import org.apache.storm.generated.ProfileRequest;
 import org.apache.storm.generated.WorkerResources;
-import org.apache.storm.localizer.AsyncLocalizer;
-import org.apache.storm.localizer.BlobChangingCallback;
-import org.apache.storm.localizer.GoodToGo;
-import org.apache.storm.localizer.LocallyCachedBlob;
+import org.apache.storm.localizer.ILocalizer;
 import org.apache.storm.scheduler.ISupervisor;
 import org.apache.storm.utils.LocalState;
 import org.apache.storm.utils.Time;
 import org.apache.storm.utils.Time.SimulatedTime;
 import org.junit.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class SlotTest {
-    private static final Logger LOG = LoggerFactory.getLogger(SlotTest.class);
-
     static WorkerResources mkWorkerResources(Double cpu, Double mem_on_heap, Double mem_off_heap) {
         WorkerResources resources = new WorkerResources();
         if (cpu != null) {
@@ -121,36 +111,16 @@ public class SlotTest {
         assertFalse(Slot.equivalent(null, b));
         assertFalse(Slot.equivalent(a, b));
     }
-
-    @Test
-    public void testForSameTopology() {
-        LocalAssignment a = mkLocalAssignment("A", mkExecutorInfoList(1,2,3,4,5), mkWorkerResources(100.0, 100.0, 100.0));
-        LocalAssignment aResized = mkLocalAssignment("A", mkExecutorInfoList(1,2,3,4,5), mkWorkerResources(100.0, 200.0, 100.0));
-        LocalAssignment b = mkLocalAssignment("B", mkExecutorInfoList(1,2,3,4,5,6), mkWorkerResources(100.0, 100.0, 100.0));
-        LocalAssignment bReordered = mkLocalAssignment("B", mkExecutorInfoList(6,5,4,3,2,1), mkWorkerResources(100.0, 100.0, 100.0));
-
-        assertTrue(Slot.forSameTopology(null, null));
-        assertTrue(Slot.forSameTopology(a, a));
-        assertTrue(Slot.forSameTopology(a, aResized));
-        assertTrue(Slot.forSameTopology(aResized, a));
-        assertTrue(Slot.forSameTopology(b, bReordered));
-        assertTrue(Slot.forSameTopology(bReordered, b));
-
-        assertFalse(Slot.forSameTopology(a, null));
-        assertFalse(Slot.forSameTopology(null, b));
-        assertFalse(Slot.forSameTopology(a, b));
-    }
-
+    
     @Test
     public void testEmptyToEmpty() throws Exception {
         try (SimulatedTime t = new SimulatedTime(1010)){
-            AsyncLocalizer localizer = mock(AsyncLocalizer.class);
+            ILocalizer localizer = mock(ILocalizer.class);
             LocalState state = mock(LocalState.class);
-            BlobChangingCallback cb = mock(BlobChangingCallback.class);
             ContainerLauncher containerLauncher = mock(ContainerLauncher.class);
             ISupervisor iSuper = mock(ISupervisor.class);
             StaticState staticState = new StaticState(localizer, 1000, 1000, 1000, 1000,
-                    containerLauncher, "localhost", 8080, iSuper, state, cb);
+                    containerLauncher, "localhost", 8080, iSuper, state);
             DynamicState dynamicState = new DynamicState(null, null, null);
             DynamicState nextState = Slot.handleEmpty(dynamicState, staticState);
             assertEquals(MachineState.EMPTY, nextState.state);
@@ -166,28 +136,39 @@ public class SlotTest {
             List<ExecutorInfo> execList =  mkExecutorInfoList(1,2,3,4,5);
             LocalAssignment newAssignment = 
                     mkLocalAssignment(topoId, execList, mkWorkerResources(100.0, 100.0, 100.0));
-
-            AsyncLocalizer localizer = mock(AsyncLocalizer.class);
-            BlobChangingCallback cb = mock(BlobChangingCallback.class);
+            
+            ILocalizer localizer = mock(ILocalizer.class);
             Container container = mock(Container.class);
             LocalState state = mock(LocalState.class);
             ContainerLauncher containerLauncher = mock(ContainerLauncher.class);
             when(containerLauncher.launchContainer(port, newAssignment, state)).thenReturn(container);
             LSWorkerHeartbeat hb = mkWorkerHB(topoId, port, execList, Time.currentTimeSecs());
             when(container.readHeartbeat()).thenReturn(hb, hb);
-
+            
             @SuppressWarnings("unchecked")
-            CompletableFuture<Void> blobFuture = mock(CompletableFuture.class);
-            when(localizer.requestDownloadTopologyBlobs(newAssignment, port, cb)).thenReturn(blobFuture);
+            Future<Void> baseFuture = mock(Future.class);
+            when(localizer.requestDownloadBaseTopologyBlobs(newAssignment, port)).thenReturn(baseFuture);
+            
+            @SuppressWarnings("unchecked")
+            Future<Void> blobFuture = mock(Future.class);
+            when(localizer.requestDownloadTopologyBlobs(newAssignment, port)).thenReturn(blobFuture);
             
             ISupervisor iSuper = mock(ISupervisor.class);
             StaticState staticState = new StaticState(localizer, 5000, 120000, 1000, 1000,
-                    containerLauncher, "localhost", port, iSuper, state, cb);
+                    containerLauncher, "localhost", port, iSuper, state);
             DynamicState dynamicState = new DynamicState(null, null, null)
                     .withNewAssignment(newAssignment);
-
+            
             DynamicState nextState = Slot.stateMachineStep(dynamicState, staticState);
-            verify(localizer).requestDownloadTopologyBlobs(newAssignment, port, cb);
+            verify(localizer).requestDownloadBaseTopologyBlobs(newAssignment, port);
+            assertEquals(MachineState.WAITING_FOR_BASIC_LOCALIZATION, nextState.state);
+            assertSame("pendingDownload not set properly", baseFuture, nextState.pendingDownload);
+            assertEquals(newAssignment, nextState.pendingLocalization);
+            assertEquals(0, Time.currentTimeMillis());
+            
+            nextState = Slot.stateMachineStep(nextState, staticState);
+            verify(baseFuture).get(1000, TimeUnit.MILLISECONDS);
+            verify(localizer).requestDownloadTopologyBlobs(newAssignment, port);
             assertEquals(MachineState.WAITING_FOR_BLOB_LOCALIZATION, nextState.state);
             assertSame("pendingDownload not set properly", blobFuture, nextState.pendingDownload);
             assertEquals(newAssignment, nextState.pendingLocalization);
@@ -239,8 +220,7 @@ public class SlotTest {
             LocalAssignment assignment = 
                     mkLocalAssignment(topoId, execList, mkWorkerResources(100.0, 100.0, 100.0));
             
-            AsyncLocalizer localizer = mock(AsyncLocalizer.class);
-            BlobChangingCallback cb = mock(BlobChangingCallback.class);
+            ILocalizer localizer = mock(ILocalizer.class);
             Container container = mock(Container.class);
             ContainerLauncher containerLauncher = mock(ContainerLauncher.class);
             LSWorkerHeartbeat oldhb = mkWorkerHB(topoId, port, execList, Time.currentTimeSecs()-10);
@@ -251,7 +231,7 @@ public class SlotTest {
             ISupervisor iSuper = mock(ISupervisor.class);
             LocalState state = mock(LocalState.class);
             StaticState staticState = new StaticState(localizer, 5000, 120000, 1000, 1000,
-                    containerLauncher, "localhost", port, iSuper, state, cb);
+                    containerLauncher, "localhost", port, iSuper, state);
             DynamicState dynamicState = new DynamicState(assignment, container, assignment);
             
             DynamicState nextState = Slot.stateMachineStep(dynamicState, staticState);
@@ -285,9 +265,7 @@ public class SlotTest {
             List<ExecutorInfo> cExecList =  mkExecutorInfoList(1,2,3,4,5);
             LocalAssignment cAssignment = 
                     mkLocalAssignment(cTopoId, cExecList, mkWorkerResources(100.0, 100.0, 100.0));
-
-            BlobChangingCallback cb = mock(BlobChangingCallback.class);
-
+            
             Container cContainer = mock(Container.class);
             LSWorkerHeartbeat chb = mkWorkerHB(cTopoId, port, cExecList, Time.currentTimeSecs());
             when(cContainer.readHeartbeat()).thenReturn(chb);
@@ -298,7 +276,7 @@ public class SlotTest {
             LocalAssignment nAssignment = 
                     mkLocalAssignment(nTopoId, nExecList, mkWorkerResources(100.0, 100.0, 100.0));
             
-            AsyncLocalizer localizer = mock(AsyncLocalizer.class);
+            ILocalizer localizer = mock(ILocalizer.class);
             Container nContainer = mock(Container.class);
             LocalState state = mock(LocalState.class);
             ContainerLauncher containerLauncher = mock(ContainerLauncher.class);
@@ -307,33 +285,45 @@ public class SlotTest {
             when(nContainer.readHeartbeat()).thenReturn(nhb, nhb);
             
             @SuppressWarnings("unchecked")
-            CompletableFuture<Void> blobFuture = mock(CompletableFuture.class);
-            when(localizer.requestDownloadTopologyBlobs(nAssignment, port, cb)).thenReturn(blobFuture);
+            Future<Void> baseFuture = mock(Future.class);
+            when(localizer.requestDownloadBaseTopologyBlobs(nAssignment, port)).thenReturn(baseFuture);
+            
+            @SuppressWarnings("unchecked")
+            Future<Void> blobFuture = mock(Future.class);
+            when(localizer.requestDownloadTopologyBlobs(nAssignment, port)).thenReturn(blobFuture);
             
             ISupervisor iSuper = mock(ISupervisor.class);
             StaticState staticState = new StaticState(localizer, 5000, 120000, 1000, 1000,
-                    containerLauncher, "localhost", port, iSuper, state, cb);
+                    containerLauncher, "localhost", port, iSuper, state);
             DynamicState dynamicState = new DynamicState(cAssignment, cContainer, nAssignment);
             
             DynamicState nextState = Slot.stateMachineStep(dynamicState, staticState);
             assertEquals(MachineState.KILL, nextState.state);
             verify(cContainer).kill();
-            verify(localizer).requestDownloadTopologyBlobs(nAssignment, port, cb);
-            assertSame("pendingDownload not set properly", blobFuture, nextState.pendingDownload);
+            verify(localizer).requestDownloadBaseTopologyBlobs(nAssignment, port);
+            assertSame("pendingDownload not set properly", baseFuture, nextState.pendingDownload);
             assertEquals(nAssignment, nextState.pendingLocalization);
             assertTrue(Time.currentTimeMillis() > 1000);
             
             nextState = Slot.stateMachineStep(nextState, staticState);
             assertEquals(MachineState.KILL, nextState.state);
             verify(cContainer).forceKill();
-            assertSame("pendingDownload not set properly", blobFuture, nextState.pendingDownload);
+            assertSame("pendingDownload not set properly", baseFuture, nextState.pendingDownload);
             assertEquals(nAssignment, nextState.pendingLocalization);
             assertTrue(Time.currentTimeMillis() > 2000);
             
             nextState = Slot.stateMachineStep(nextState, staticState);
-            assertEquals(MachineState.WAITING_FOR_BLOB_LOCALIZATION, nextState.state);
+            assertEquals(MachineState.WAITING_FOR_BASIC_LOCALIZATION, nextState.state);
             verify(cContainer).cleanUp();
             verify(localizer).releaseSlotFor(cAssignment, port);
+            assertTrue(Time.currentTimeMillis() > 2000);
+            
+            nextState = Slot.stateMachineStep(nextState, staticState);
+            assertEquals(MachineState.WAITING_FOR_BLOB_LOCALIZATION, nextState.state);
+            verify(baseFuture).get(1000, TimeUnit.MILLISECONDS);
+            verify(localizer).requestDownloadTopologyBlobs(nAssignment, port);
+            assertSame("pendingDownload not set properly", blobFuture, nextState.pendingDownload);
+            assertEquals(nAssignment, nextState.pendingLocalization);
             assertTrue(Time.currentTimeMillis() > 2000);
             
             nextState = Slot.stateMachineStep(nextState, staticState);
@@ -371,6 +361,7 @@ public class SlotTest {
             assertTrue(Time.currentTimeMillis() > 4000);
         }
     }
+
     
     @Test
     public void testRunningToEmpty() throws Exception {
@@ -386,20 +377,19 @@ public class SlotTest {
             when(cContainer.readHeartbeat()).thenReturn(chb);
             when(cContainer.areAllProcessesDead()).thenReturn(false, true);
             
-            AsyncLocalizer localizer = mock(AsyncLocalizer.class);
-            BlobChangingCallback cb = mock(BlobChangingCallback.class);
+            ILocalizer localizer = mock(ILocalizer.class);
             ContainerLauncher containerLauncher = mock(ContainerLauncher.class);
             
             ISupervisor iSuper = mock(ISupervisor.class);
             LocalState state = mock(LocalState.class);
             StaticState staticState = new StaticState(localizer, 5000, 120000, 1000, 1000,
-                    containerLauncher, "localhost", port, iSuper, state, cb);
+                    containerLauncher, "localhost", port, iSuper, state);
             DynamicState dynamicState = new DynamicState(cAssignment, cContainer, null);
             
             DynamicState nextState = Slot.stateMachineStep(dynamicState, staticState);
             assertEquals(MachineState.KILL, nextState.state);
             verify(cContainer).kill();
-            verify(localizer, never()).requestDownloadTopologyBlobs(null, port, cb);
+            verify(localizer, never()).requestDownloadBaseTopologyBlobs(null, port);
             assertSame("pendingDownload not set properly", null, nextState.pendingDownload);
             assertEquals(null, nextState.pendingLocalization);
             assertTrue(Time.currentTimeMillis() > 1000);
@@ -447,14 +437,13 @@ public class SlotTest {
             when(cContainer.readHeartbeat()).thenReturn(chb, chb, chb, chb, chb, chb);
             when(cContainer.runProfiling(any(ProfileRequest.class), anyBoolean())).thenReturn(true);
             
-            AsyncLocalizer localizer = mock(AsyncLocalizer.class);
-            BlobChangingCallback cb = mock(BlobChangingCallback.class);
+            ILocalizer localizer = mock(ILocalizer.class);
             ContainerLauncher containerLauncher = mock(ContainerLauncher.class);
             
             ISupervisor iSuper = mock(ISupervisor.class);
             LocalState state = mock(LocalState.class);
             StaticState staticState = new StaticState(localizer, 5000, 120000, 1000, 1000,
-                    containerLauncher, "localhost", port, iSuper, state, cb);
+                    containerLauncher, "localhost", port, iSuper, state);
             Set<TopoProfileAction> profileActions = new HashSet<>();
             ProfileRequest request = new ProfileRequest();
             request.set_action(ProfileAction.JPROFILE_STOP);
@@ -504,106 +493,6 @@ public class SlotTest {
             assertEquals(Collections.<TopoProfileAction> emptySet(), nextState.pendingStopProfileActions);
             assertEquals(Collections.<TopoProfileAction> emptySet(), nextState.profileActions);
             assertTrue(Time.currentTimeMillis() > 5000);
-        }
-    }
-
-    @Test
-    public void testResourcesChanged() throws Exception {
-        try (SimulatedTime t = new SimulatedTime(1010)){
-            int port = 8080;
-            String cTopoId = "CURRENT";
-            List<ExecutorInfo> cExecList =  mkExecutorInfoList(1,2,3,4,5);
-            LocalAssignment cAssignment =
-                mkLocalAssignment(cTopoId, cExecList, mkWorkerResources(100.0, 100.0, 100.0));
-
-            BlobChangingCallback cb = mock(BlobChangingCallback.class);
-
-            Container cContainer = mock(Container.class);
-            LSWorkerHeartbeat chb = mkWorkerHB(cTopoId, port, cExecList, Time.currentTimeSecs());
-            when(cContainer.readHeartbeat()).thenReturn(chb);
-            when(cContainer.areAllProcessesDead()).thenReturn(false, true);
-            AsyncLocalizer localizer = mock(AsyncLocalizer.class);
-            Container nContainer = mock(Container.class);
-            LocalState state = mock(LocalState.class);
-            ContainerLauncher containerLauncher = mock(ContainerLauncher.class);
-            when(containerLauncher.launchContainer(port, cAssignment, state)).thenReturn(nContainer);
-            when(nContainer.readHeartbeat()).thenReturn(chb, chb);
-
-            ISupervisor iSuper = mock(ISupervisor.class);
-            long heartbeatTimeoutMs = 5000;
-            StaticState staticState = new StaticState(localizer, heartbeatTimeoutMs, 120_000, 1000, 1000,
-                containerLauncher, "localhost", port, iSuper, state, cb);
-
-            Set<Slot.BlobChanging> changing = new HashSet<>();
-            LocallyCachedBlob stormJar = mock(LocallyCachedBlob.class);
-            GoodToGo.GoodToGoLatch stormJarLatch = mock(GoodToGo.GoodToGoLatch.class);
-            CompletableFuture<Void> stormJarLatchFuture = mock(CompletableFuture.class);
-            when(stormJarLatch.countDown()).thenReturn(stormJarLatchFuture);
-            changing.add(new Slot.BlobChanging(cAssignment, stormJar, stormJarLatch));
-
-            DynamicState dynamicState = new DynamicState(cAssignment, cContainer, cAssignment).withChangingBlobs(changing);
-            
-            DynamicState nextState = Slot.stateMachineStep(dynamicState, staticState);
-            assertEquals(MachineState.KILL_BLOB_UPDATE, nextState.state);
-            verify(iSuper).killedWorker(port);
-            verify(cContainer).kill();
-            verify(localizer, never()).requestDownloadTopologyBlobs(any(), anyInt(), any());
-            assertNull(nextState.pendingDownload);
-            assertNull(nextState.pendingLocalization);
-            assertEquals(changing, nextState.changingBlobs);
-            assertTrue(nextState.pendingChangingBlobs.isEmpty());
-            assertNull(nextState.pendingChangingBlobsAssignment);
-            assertThat(Time.currentTimeMillis(), greaterThan(1000L));
-
-            nextState = Slot.stateMachineStep(nextState, staticState);
-            assertEquals(MachineState.KILL_BLOB_UPDATE, nextState.state);
-            verify(cContainer).forceKill();
-            assertNull(nextState.pendingDownload);
-            assertNull(nextState.pendingLocalization);
-            assertEquals(changing, nextState.changingBlobs);
-            assertTrue(nextState.pendingChangingBlobs.isEmpty());
-            assertNull(nextState.pendingChangingBlobsAssignment);
-            assertThat(Time.currentTimeMillis(), greaterThan(2000L));
-
-            nextState = Slot.stateMachineStep(nextState, staticState);
-            assertEquals(MachineState.WAITING_FOR_BLOB_UPDATE, nextState.state);
-            verify(cContainer).cleanUp();
-            assertThat(Time.currentTimeMillis(), greaterThan(2000L));
-
-            nextState = Slot.stateMachineStep(nextState, staticState);
-            verify(stormJarLatchFuture).get(anyLong(), any());
-            verify(containerLauncher).launchContainer(port, cAssignment, state);
-            assertEquals(MachineState.WAITING_FOR_WORKER_START, nextState.state);
-            assertNull(nextState.pendingChangingBlobsAssignment);
-            assertTrue(nextState.pendingChangingBlobs.isEmpty());
-            assertSame(cAssignment, nextState.currentAssignment);
-            assertSame(nContainer, nextState.container);
-            assertThat(Time.currentTimeMillis(), greaterThan(2000L));
-            assertThat(Time.currentTimeMillis(), lessThan(heartbeatTimeoutMs));
-            
-            nextState = Slot.stateMachineStep(nextState, staticState);
-            assertEquals(MachineState.RUNNING, nextState.state);
-            assertNull(nextState.pendingChangingBlobsAssignment);
-            assertTrue(nextState.pendingChangingBlobs.isEmpty());
-            assertSame(cAssignment, nextState.currentAssignment);
-            assertSame(nContainer, nextState.container);
-            assertTrue(Time.currentTimeMillis() > 2000);
-
-            nextState = Slot.stateMachineStep(nextState, staticState);
-            assertEquals(MachineState.RUNNING, nextState.state);
-            assertNull(nextState.pendingChangingBlobsAssignment);
-            assertTrue(nextState.pendingChangingBlobs.isEmpty());
-            assertSame(cAssignment, nextState.currentAssignment);
-            assertSame(nContainer, nextState.container);
-            assertTrue(Time.currentTimeMillis() > 3000);
-
-            nextState = Slot.stateMachineStep(nextState, staticState);
-            assertEquals(MachineState.RUNNING, nextState.state);
-            assertNull(nextState.pendingChangingBlobsAssignment);
-            assertTrue(nextState.pendingChangingBlobs.isEmpty());
-            assertSame(cAssignment, nextState.currentAssignment);
-            assertSame(nContainer, nextState.container);
-            assertTrue(Time.currentTimeMillis() > 4000);
         }
     }
 }

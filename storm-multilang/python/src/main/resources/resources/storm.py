@@ -232,12 +232,6 @@ class Spout(object):
     def initialize(self, conf, context):
         pass
 
-    def activate(self):
-        pass
-
-    def deactivate(self):
-        pass
-
     def ack(self, id):
         pass
 
@@ -255,10 +249,6 @@ class Spout(object):
             self.initialize(conf, context)
             while True:
                 msg = readCommand()
-                if msg["command"] == "activate":
-                    self.activate()
-                if msg["command"] == "deactivate":
-                    self.deactivate()
                 if msg["command"] == "next":
                     self.nextTuple()
                 if msg["command"] == "ack":

@@ -67,7 +67,7 @@ public final class SlidingWindowTest extends AbstractTest {
     @Test(dataProvider = "generateCountWindows")
     public void testWindowCount(int windowSize, int slideSize) throws Exception {
         final SlidingWindowCorrectness testable = new SlidingWindowCorrectness(windowSize, slideSize);
-        final String topologyName = this.getClass().getSimpleName() + "-window" + windowSize + "-slide" + slideSize;
+        final String topologyName = this.getClass().getSimpleName() + "w" + windowSize + "s" + slideSize;
         if (windowSize <= 0 || slideSize <= 0) {
             try {
                 testable.newTopology();
@@ -135,7 +135,7 @@ public final class SlidingWindowTest extends AbstractTest {
     @Test(dataProvider = "generateTimeWindows")
     public void testTimeWindow(int windowSec, int slideSec) throws Exception {
         final SlidingTimeCorrectness testable = new SlidingTimeCorrectness(windowSec, slideSec);
-        final String topologyName = this.getClass().getSimpleName() + "-window" + windowSec + "-slide" + slideSec;
+        final String topologyName = this.getClass().getSimpleName() + "w" + windowSec + "s" + slideSec;
         if (windowSec <= 0 || slideSec <= 0) {
             try {
                 testable.newTopology();
@@ -187,8 +187,7 @@ public final class SlidingWindowTest extends AbstractTest {
     @AfterMethod
     public void cleanup() throws Exception {
         if (topo != null) {
-            topo.killOrThrow();
-            topo = null;
+            topo.killQuietly();
         }
     }
 }

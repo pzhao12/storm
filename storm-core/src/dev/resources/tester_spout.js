@@ -44,14 +44,6 @@ TesterSpout.prototype.nextTuple = function(done) {
     done();
 }
 
-TesterSpout.prototype.activate = function(done) {
-    done();
-}
-
-TesterSpout.prototype.deactivate = function(done) {
-    done();
-}
-
 TesterSpout.prototype.createNextTupleId = function() {
     var id = this.runningTupleId;
     this.runningTupleId++;

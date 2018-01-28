@@ -15,7 +15,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.storm.flux.model;
 
 import java.util.List;
@@ -26,7 +25,7 @@ import java.util.List;
 public class GroupingDef {
 
     /**
-     * Types of stream groupings Storm allows.
+     * Types of stream groupings Storm allows
      */
     public static enum Type {
         ALL,

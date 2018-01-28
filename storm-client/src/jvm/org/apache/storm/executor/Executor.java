@@ -40,7 +40,6 @@ import org.apache.storm.cluster.ClusterStateContext;
 import org.apache.storm.cluster.ClusterUtils;
 import org.apache.storm.cluster.DaemonType;
 import org.apache.storm.cluster.IStormClusterState;
-import org.apache.storm.daemon.Acker;
 import org.apache.storm.daemon.GrouperFactory;
 import org.apache.storm.daemon.StormCommon;
 import org.apache.storm.daemon.Task;
@@ -116,7 +115,7 @@ public abstract class Executor implements Callable, EventHandler<Object> {
 
     protected final IReportError reportError;
     protected final Random rand;
-    protected final DisruptorQueue sendQueue;
+    protected final DisruptorQueue transferQueue;
     protected final DisruptorQueue receiveQueue;
     protected Map<Integer, Task> idToTask;
     protected final Map<String, String> credentials;
@@ -141,8 +140,8 @@ public abstract class Executor implements Callable, EventHandler<Object> {
         this.stormActive = workerData.getIsTopologyActive();
         this.stormComponentDebug = workerData.getStormComponentToDebug();
 
-        this.sendQueue = mkExecutorBatchQueue(topoConf, executorId);
-        this.executorTransfer = new ExecutorTransfer(workerData, sendQueue, topoConf);
+        this.transferQueue = mkExecutorBatchQueue(topoConf, executorId);
+        this.executorTransfer = new ExecutorTransfer(workerData, transferQueue, topoConf);
 
         this.suicideFn = workerData.getSuicideCallback();
         try {
@@ -254,7 +253,7 @@ public abstract class Executor implements Callable, EventHandler<Object> {
         setupTicks(StatsUtil.SPOUT.equals(type));
 
         LOG.info("Finished loading executor " + componentId + ":" + executorId);
-        return new ExecutorShutdown(this, Lists.newArrayList(systemThreads, handlers), idToTask, receiveQueue, sendQueue);
+        return new ExecutorShutdown(this, Lists.newArrayList(systemThreads, handlers), idToTask);
     }
 
     public abstract void tupleActionFn(int taskId, TupleImpl tuple) throws Exception;
@@ -382,19 +381,19 @@ public abstract class Executor implements Callable, EventHandler<Object> {
         final Integer tickTimeSecs = ObjectReader.getInt(topoConf.get(Config.TOPOLOGY_TICK_TUPLE_FREQ_SECS), null);
         boolean enableMessageTimeout = (Boolean) topoConf.get(Config.TOPOLOGY_ENABLE_MESSAGE_TIMEOUTS);
         if (tickTimeSecs != null) {
-            if ((!Acker.ACKER_COMPONENT_ID.equals(componentId) && Utils.isSystemId(componentId))
-                || (!enableMessageTimeout && isSpout)) {
-                LOG.info("Timeouts disabled for executor {}:{}", componentId, executorId);
+            if (Utils.isSystemId(componentId) || (!enableMessageTimeout && isSpout)) {
+                LOG.info("Timeouts disabled for executor " + componentId + ":" + executorId);
             } else {
                 StormTimer timerTask = workerData.getUserTimer();
-                timerTask.scheduleRecurring(tickTimeSecs, tickTimeSecs, () -> {
-                    // We should create a new tick tuple for each recurrence instead of sharing object
-                    // More detail on https://issues.apache.org/jira/browse/STORM-2912
-                    TupleImpl tuple = new TupleImpl(workerTopologyContext, new Values(tickTimeSecs),
-                            (int) Constants.SYSTEM_TASK_ID, Constants.SYSTEM_TICK_STREAM_ID);
-                    final List<AddressedTuple> tickTuple =
-                            Lists.newArrayList(new AddressedTuple(AddressedTuple.BROADCAST_DEST, tuple));
-                    receiveQueue.publish(tickTuple);
+                timerTask.scheduleRecurring(tickTimeSecs, tickTimeSecs, new Runnable() {
+                    @Override
+                    public void run() {
+                        TupleImpl tuple = new TupleImpl(workerTopologyContext, new Values(tickTimeSecs),
+                                (int) Constants.SYSTEM_TASK_ID, Constants.SYSTEM_TICK_STREAM_ID);
+                        List<AddressedTuple> tickTuple =
+                                Lists.newArrayList(new AddressedTuple(AddressedTuple.BROADCAST_DEST, tuple));
+                        receiveQueue.publish(tickTuple);
+                    }
                 });
             }
         }
@@ -563,7 +562,7 @@ public abstract class Executor implements Callable, EventHandler<Object> {
     }
 
     public DisruptorQueue getTransferWorkerQueue() {
-        return sendQueue;
+        return transferQueue;
     }
 
     public IStormClusterState getStormClusterState() {

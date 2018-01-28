@@ -18,7 +18,9 @@
 
 package org.apache.storm.solr.schema;
 
-import java.io.IOException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.Serializable;
 import java.util.Collection;
 import java.util.HashMap;
@@ -27,17 +29,12 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 
-import org.apache.storm.solr.schema.builder.SchemaBuilder;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 /**
  * Class containing all the information relating fields with their types. This information is wrapped in the class
  * {@link FieldTypeWrapper}
  */
 public class SolrFieldTypeFinder implements Serializable {
     private static final Logger log = LoggerFactory.getLogger(SolrFieldTypeFinder.class);
-    private  SchemaBuilder schemaBuilder;
     private Schema schema;
     private Map<String, FieldTypeWrapper> fieldToWrapper;
 
@@ -73,22 +70,13 @@ public class SolrFieldTypeFinder implements Serializable {
     /**
      * Initiates class containing all the information relating fields with their types.
      * This information is parsed from the schema
-     * @param schemaBuilder schemaBuilder to build the information about fields and types
+     * @param schema SolrSchema containing the information about fields and types
      * */
-    public SolrFieldTypeFinder(SchemaBuilder schemaBuilder) {
-        this.schemaBuilder = schemaBuilder;
-    }
-
-    public void initialize() {
-        if (schemaBuilder == null) {
-            throw new IllegalStateException("schemaBuilder object is null");
+    public SolrFieldTypeFinder(Schema schema) {
+        if (schema == null) {
+            throw new IllegalArgumentException("Schema object is null");
         }
-        try {
-            schemaBuilder.buildSchema();
-        } catch (IOException e) {
-            throw new IllegalStateException("Error while building schema");
-        }
-        this.schema = schemaBuilder.getSchema();
+        this.schema = schema;
         this.fieldToWrapper = new HashMap<>();
         buildMap();
     }

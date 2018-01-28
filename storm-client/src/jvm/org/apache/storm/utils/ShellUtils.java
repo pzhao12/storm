@@ -28,7 +28,6 @@ import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import org.apache.storm.Config;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -136,10 +135,8 @@ abstract public class ShellUtils {
 
     /** a Unix command to get the current user's groups list */
     public static String[] getGroupsCommand() {
-        if (WINDOWS) {
-            throw new UnsupportedOperationException("Getting user groups is not supported on Windows");
-        }
-        return new String[]{"bash", "-c", "groups"};
+        return (WINDOWS)? new String[]{"cmd", "/c", "groups"}
+        : new String[]{"bash", "-c", "groups"};
     }
 
     /**
@@ -149,9 +146,6 @@ abstract public class ShellUtils {
      * i.e. the user's primary group will be included twice.
      */
     public static String[] getGroupsForUserCommand(final String user) {
-        if (WINDOWS) {
-            throw new UnsupportedOperationException("Getting user groups is not supported on Windows");
-        }
         //'groups username' command return is non-consistent across different unixes
         return new String [] {"bash", "-c", "id -gn " + user
                          + "&& id -Gn " + user};
@@ -437,6 +431,49 @@ abstract public class ShellUtils {
         this.timedOut.set(true);
     }
 
+
+    /**
+     * Static method to execute a shell command.
+     * Covers most of the simple cases without requiring the user to implement
+     * the <code>Shell</code> interface.
+     * @param cmd shell command to execute.
+     * @return the output of the executed command.
+     */
+    public static String execCommand(String ... cmd) throws IOException {
+        return execCommand(null, cmd, 0L);
+    }
+
+    /**
+     * Static method to execute a shell command.
+     * Covers most of the simple cases without requiring the user to implement
+     * the <code>Shell</code> interface.
+     * @param env the map of environment key=value
+     * @param cmd shell command to execute.
+     * @param timeout time in milliseconds after which script should be marked timeout
+     * @return the output of the executed command.o
+     */
+
+    public static String execCommand(Map<String, String> env, String[] cmd,
+                                     long timeout) throws IOException {
+        ShellCommandExecutor exec = new ShellCommandExecutor(cmd, null, env,
+                                                             timeout);
+        exec.execute();
+        return exec.getOutput();
+    }
+
+    /**
+     * Static method to execute a shell command.
+     * Covers most of the simple cases without requiring the user to implement
+     * the <code>Shell</code> interface.
+     * @param env the map of environment key=value
+     * @param cmd shell command to execute.
+     * @return the output of the executed command.
+     */
+    public static String execCommand(Map<String,String> env, String ... cmd)
+        throws IOException {
+        return execCommand(env, cmd, 0L);
+    }
+
     /**
      * Timer which is used to timeout scripts spawned off by shell.
      */
@@ -465,20 +502,4 @@ abstract public class ShellUtils {
         }
     }
 
-    public static ShellLogHandler getLogHandler(Map<String, Object> topoConf) {
-        if (topoConf == null) {
-            throw new IllegalArgumentException("Config is required");
-        }
-
-        String logHandlerClassName = null;
-        if (topoConf.containsKey(Config.TOPOLOGY_MULTILANG_LOG_HANDLER)) {
-            try {
-                logHandlerClassName = topoConf.get(Config.TOPOLOGY_MULTILANG_LOG_HANDLER).toString();
-                return (ShellLogHandler) Class.forName(logHandlerClassName).newInstance();
-            } catch (ClassCastException | InstantiationException | IllegalAccessException | ClassNotFoundException e) {
-                throw new RuntimeException("Error loading ShellLogHandler " + logHandlerClassName, e);
-            }
-        }
-        return new DefaultShellLogHandler();
-    }
 }

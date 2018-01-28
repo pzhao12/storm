@@ -63,7 +63,6 @@ import java.util.regex.Pattern;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
-import com.google.common.collect.Lists;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.input.ClassLoaderObjectInputStream;
 import org.apache.storm.Config;
@@ -106,7 +105,7 @@ public class Utils {
     public static final Logger LOG = LoggerFactory.getLogger(Utils.class);
     public static final String DEFAULT_STREAM_ID = "default";
     private static final Set<Class> defaultAllowedExceptions = new HashSet<>();
-    private static final List<String> LOCALHOST_ADDRESSES = Lists.newArrayList("localhost", "127.0.0.1", "0:0:0:0:0:0:0:1");
+    public static final String FILE_PATH_SEPARATOR = System.getProperty("file.separator");
 
     private static ThreadLocal<TSerializer> threadSer = new ThreadLocal<TSerializer>();
     private static ThreadLocal<TDeserializer> threadDes = new ThreadLocal<TDeserializer>();
@@ -291,22 +290,12 @@ public class Utils {
      * runtime to avoid any zombie process in case cleanup function hangs.
      */
     public static void addShutdownHookWithForceKillIn1Sec (Runnable func) {
-        addShutdownHookWithDelayedForceKill(func, 1);
-    }
-
-    /**
-     * Adds the user supplied function as a shutdown hook for cleanup.
-     * Also adds a function that sleeps for numSecs and then halts the
-     * runtime to avoid any zombie process in case cleanup function hangs.
-     */
-    public static void addShutdownHookWithDelayedForceKill (Runnable func, int numSecs) {
         Runnable sleepKill = new Runnable() {
             @Override
             public void run() {
                 try {
-                    LOG.info("Halting after {} seconds", numSecs);
-                    Time.sleepSecs(numSecs);
-                    LOG.warn("Forcing Halt...");
+                    Time.sleepSecs(1);
+                    LOG.warn("Forceing Halt...");
                     Runtime.getRuntime().halt(20);
                 } catch (Exception e) {
                     LOG.warn("Exception in the ShutDownHook", e);
@@ -412,24 +401,14 @@ public class Utils {
      * @return true if throwable is instance of klass, false otherwise.
      */
     public static boolean exceptionCauseIsInstanceOf(Class klass, Throwable throwable) {
-        return unwrapTo(klass, throwable) != null;
-    }
-
-    public static <T extends Throwable> T unwrapTo(Class<T> klass, Throwable t) {
+        Throwable t = throwable;
         while (t != null) {
             if (klass.isInstance(t)) {
-                return (T)t;
+                return true;
             }
             t = t.getCause();
         }
-        return null;
-    }
-
-    public static <T extends Throwable> void unwrapAndThrow(Class<T> klass, Throwable t) throws T {
-        T ret = unwrapTo(klass, t);
-        if (ret != null) {
-            throw ret;
-        }
+        return false;
     }
 
     public static RuntimeException wrapInRuntime(Exception e){
@@ -925,7 +904,7 @@ public class Utils {
 
     /**
      * parses the arguments to extract jvm heap memory size in MB.
-     * @param options
+     * @param input
      * @param defaultValue
      * @return the value of the JVM heap memory setting (in MB) in a java command.
      */
@@ -1120,6 +1099,31 @@ public class Utils {
         return dump.toString();
     }
 
+    public static long getVersionFromBlobVersionFile(File versionFile) {
+        long currentVersion = 0;
+        if (versionFile.exists() && !(versionFile.isDirectory())) {
+            BufferedReader br = null;
+            try {
+                br = new BufferedReader(new FileReader(versionFile));
+                String line = br.readLine();
+                currentVersion = Long.parseLong(line);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            } finally {
+                try {
+                    if (br != null) {
+                        br.close();
+                    }
+                } catch (Exception ignore) {
+                    LOG.error("Exception trying to cleanup", ignore);
+                }
+            }
+            return currentVersion;
+        } else {
+            return -1;
+        }
+    }
+
     public static boolean checkDirExists(String dir) {
         File file = new File(dir);
         return file.isDirectory();
@@ -1291,18 +1295,6 @@ public class Utils {
             return null;
         }
         return findOne(pred, (Set<T>) map.entrySet());
-    }
-
-    public static Map<String, Object> parseJson(String json) {
-        if (json==null) {
-            return new HashMap<>();
-        } else {
-            try {
-                return (Map<String, Object>) JSONValue.parseWithException(json);
-            } catch (ParseException e) {
-                throw new RuntimeException(e);
-            }
-        }
     }
 
     // Non-static impl methods exist for mocking purposes.
@@ -1512,17 +1504,5 @@ public class Utils {
             defaultsConf.putAll(stormConf);
         }
         return defaultsConf;
-    }
-
-    public static boolean isLocalhostAddress(String address) {
-        return LOCALHOST_ADDRESSES.contains(address);
-    }
-
-    public static <K, V> Map<K, V> merge(Map<? extends K, ? extends V> first, Map<? extends K, ? extends V> other) {
-        Map<K, V> ret = new HashMap<>(first);
-        if (other != null) {
-            ret.putAll(other);
-        }
-        return ret;
     }
 }

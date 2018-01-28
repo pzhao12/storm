@@ -23,7 +23,6 @@ import org.apache.storm.generated.AccessControlType;
 import org.apache.storm.generated.AuthorizationException;
 import org.apache.storm.generated.SettableBlobMeta;
 import org.apache.storm.security.auth.AuthUtils;
-import org.apache.storm.security.auth.IGroupMappingServiceProvider;
 import org.apache.storm.security.auth.IPrincipalToLocal;
 import org.apache.storm.security.auth.NimbusPrincipal;
 import org.apache.commons.lang.StringUtils;
@@ -31,7 +30,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.security.auth.Subject;
-import java.io.IOException;
 import java.security.Principal;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -47,7 +45,6 @@ import java.util.Set;
 public class BlobStoreAclHandler {
     public static final Logger LOG = LoggerFactory.getLogger(BlobStoreAclHandler.class);
     private final IPrincipalToLocal _ptol;
-    private final IGroupMappingServiceProvider groupMappingServiceProvider;
 
     public static final int READ = 0x01;
     public static final int WRITE = 0x02;
@@ -55,29 +52,19 @@ public class BlobStoreAclHandler {
     public static final List<AccessControl> WORLD_EVERYTHING =
             Arrays.asList(new AccessControl(AccessControlType.OTHER, READ | WRITE | ADMIN));
     public static final List<AccessControl> DEFAULT = new ArrayList<AccessControl>();
-    private Set<String> supervisors;
-    private Set<String> admins;
-    private Set<String> adminsGroups;
+    private Set<String> _supervisors;
+    private Set<String> _admins;
     private boolean doAclValidation;
 
     public BlobStoreAclHandler(Map<String, Object> conf) {
         _ptol = AuthUtils.GetPrincipalToLocalPlugin(conf);
-        if (conf.get(Config.STORM_GROUP_MAPPING_SERVICE_PROVIDER_PLUGIN) != null) {
-            groupMappingServiceProvider = AuthUtils.GetGroupMappingServiceProviderPlugin(conf);
-        } else {
-            groupMappingServiceProvider = null;
-        }
-        supervisors = new HashSet<String>();
-        admins = new HashSet<String>();
-        adminsGroups = new HashSet<>();
+        _supervisors = new HashSet<String>();
+        _admins = new HashSet<String>();
         if (conf.containsKey(Config.NIMBUS_SUPERVISOR_USERS)) {
-            supervisors.addAll((List<String>)conf.get(Config.NIMBUS_SUPERVISOR_USERS));
+            _supervisors.addAll((List<String>)conf.get(Config.NIMBUS_SUPERVISOR_USERS));
         }
         if (conf.containsKey(Config.NIMBUS_ADMINS)) {
-            admins.addAll((List<String>)conf.get(Config.NIMBUS_ADMINS));
-        }
-        if (conf.containsKey(Config.NIMBUS_ADMINS_GROUPS)) {
-            adminsGroups.addAll((List<String>)conf.get(Config.NIMBUS_ADMINS_GROUPS));
+            _admins.addAll((List<String>)conf.get(Config.NIMBUS_ADMINS));
         }
         if (conf.containsKey(Config.STORM_BLOBSTORE_ACL_VALIDATION_ENABLED)) {
            doAclValidation = (boolean)conf.get(Config.STORM_BLOBSTORE_ACL_VALIDATION_ENABLED);
@@ -197,23 +184,8 @@ public class BlobStoreAclHandler {
     private boolean isAdmin(Subject who) {
         Set<String> user = constructUserFromPrincipals(who);
         for (String u : user) {
-            if (admins.contains(u)) {
+            if (_admins.contains(u)) {
                 return true;
-            }
-            if (adminsGroups.size() > 0 && groupMappingServiceProvider != null) {
-                Set<String> userGroups = null;
-                try {
-                    userGroups = groupMappingServiceProvider.getGroups(u);
-                } catch (IOException e) {
-                    LOG.warn("Error while trying to fetch user groups", e);
-                }
-                if (userGroups != null) {
-                    for (String tgroup : userGroups) {
-                        if (adminsGroups.contains(tgroup)) {
-                            return true;
-                        }
-                    }
-                }
             }
         }
         return false;
@@ -230,7 +202,7 @@ public class BlobStoreAclHandler {
         Set<String> user = constructUserFromPrincipals(who);
         if (isReadOperation(operation)) {
             for (String u : user) {
-                if (supervisors.contains(u)) {
+                if (_supervisors.contains(u)) {
                     return true;
                 }
             }

@@ -33,6 +33,13 @@ public class SingleTopicKafkaSpoutConfiguration {
     public static final String STREAM = "test_stream";
     public static final String TOPIC = "test";
 
+    /**
+     * Retry in a tight loop (keep unit tests fasts).
+     */
+    public static final KafkaSpoutRetryService UNIT_TEST_RETRY_SERVICE =
+        new KafkaSpoutRetryExponentialBackoff(KafkaSpoutRetryExponentialBackoff.TimeInterval.seconds(0), KafkaSpoutRetryExponentialBackoff.TimeInterval.milliSeconds(0),
+            DEFAULT_MAX_RETRIES, KafkaSpoutRetryExponentialBackoff.TimeInterval.milliSeconds(0));
+
     public static KafkaSpoutConfig.Builder<String, String> createKafkaSpoutConfigBuilder(int port) {
         return setCommonSpoutConfig(KafkaSpoutConfig.builder("127.0.0.1:" + port, TOPIC));
     }
@@ -41,23 +48,19 @@ public class SingleTopicKafkaSpoutConfiguration {
         return setCommonSpoutConfig(new KafkaSpoutConfig.Builder<>("127.0.0.1:" + port, subscription));
     }
 
-    public static KafkaSpoutConfig.Builder<String, String> setCommonSpoutConfig(KafkaSpoutConfig.Builder<String, String> config) {
+    private static KafkaSpoutConfig.Builder<String, String> setCommonSpoutConfig(KafkaSpoutConfig.Builder<String, String> config) {
         return config.setRecordTranslator((r) -> new Values(r.topic(), r.key(), r.value()),
             new Fields("topic", "key", "value"), STREAM)
             .setProp(ConsumerConfig.GROUP_ID_CONFIG, "kafkaSpoutTestGroup")
             .setProp(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, 5)
-            .setRetry(getNoDelayRetryService())
+            .setRetry(getRetryService())
             .setOffsetCommitPeriodMs(10_000)
             .setFirstPollOffsetStrategy(EARLIEST)
             .setMaxUncommittedOffsets(250)
             .setPollTimeoutMs(1000);
     }
 
-    protected static KafkaSpoutRetryService getNoDelayRetryService() {
-        /**
-         * Retry in a tight loop (keep unit tests fasts).
-         */
-        return new KafkaSpoutRetryExponentialBackoff(KafkaSpoutRetryExponentialBackoff.TimeInterval.seconds(0), KafkaSpoutRetryExponentialBackoff.TimeInterval.milliSeconds(0),
-            DEFAULT_MAX_RETRIES, KafkaSpoutRetryExponentialBackoff.TimeInterval.milliSeconds(0));
+    protected static KafkaSpoutRetryService getRetryService() {
+        return UNIT_TEST_RETRY_SERVICE;
     }
 }

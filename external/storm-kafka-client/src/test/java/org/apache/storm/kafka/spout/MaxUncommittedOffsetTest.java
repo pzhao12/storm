@@ -15,28 +15,29 @@
  */
 package org.apache.storm.kafka.spout;
 
-import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.everyItem;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.isIn;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.junit.Assert.assertThat;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyObject;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-
 import org.apache.kafka.clients.consumer.ConsumerConfig;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.storm.kafka.KafkaUnitRule;
 import org.apache.storm.kafka.spout.config.builder.SingleTopicKafkaSpoutConfiguration;
-import org.apache.storm.kafka.spout.internal.KafkaConsumerFactoryDefault;
 import org.apache.storm.spout.SpoutOutputCollector;
 import org.apache.storm.task.TopologyContext;
 import org.apache.storm.utils.Time;
@@ -47,10 +48,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.MockitoAnnotations;
 
 import static org.apache.storm.kafka.spout.config.builder.SingleTopicKafkaSpoutConfiguration.createKafkaSpoutConfigBuilder;
-import static org.mockito.ArgumentMatchers.anyList;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.never;
 
 public class MaxUncommittedOffsetTest {
 
@@ -83,28 +80,42 @@ public class MaxUncommittedOffsetTest {
         //The spout must be able to reemit all retriable tuples, even if the maxPollRecords is set to a low value compared to maxUncommittedOffsets.
         assertThat("Current tests require maxPollRecords < maxUncommittedOffsets", maxPollRecords, lessThanOrEqualTo(maxUncommittedOffsets));
         MockitoAnnotations.initMocks(this);
-        spout = new KafkaSpout<>(spoutConfig);
-        new KafkaConsumerFactoryDefault<String, String>().createConsumer(spoutConfig);
+        this.spout = new KafkaSpout<>(spoutConfig);
     }
 
-    private void prepareSpout(int msgCount) throws Exception {
-        SingleTopicKafkaUnitSetupHelper.populateTopicData(kafkaUnitRule.getKafkaUnit(), SingleTopicKafkaSpoutConfiguration.TOPIC, msgCount);
-        SingleTopicKafkaUnitSetupHelper.initializeSpout(spout, conf, topologyContext, collector);
+    private void populateTopicData(String topicName, int msgCount) throws Exception {
+        kafkaUnitRule.getKafkaUnit().createTopic(topicName);
+
+        for (int i = 0; i < msgCount; i++) {
+            ProducerRecord<String, String> producerRecord = new ProducerRecord<>(
+                topicName, Integer.toString(i),
+                Integer.toString(i));
+
+            kafkaUnitRule.getKafkaUnit().sendMessage(producerRecord);
+        }
+    }
+
+    private void initializeSpout(int msgCount) throws Exception {
+        populateTopicData(SingleTopicKafkaSpoutConfiguration.TOPIC, msgCount);
+        when(topologyContext.getThisTaskIndex()).thenReturn(0);
+        when(topologyContext.getComponentTasks(any())).thenReturn(Collections.singletonList(0));
+        spout.open(conf, topologyContext, collector);
+        spout.activate();
     }
 
     private ArgumentCaptor<KafkaSpoutMessageId> emitMaxUncommittedOffsetsMessagesAndCheckNoMoreAreEmitted(int messageCount) throws Exception {
         assertThat("The message count is less than maxUncommittedOffsets. This test is not meaningful with this configuration.", messageCount, greaterThanOrEqualTo(maxUncommittedOffsets));
         //The spout must respect maxUncommittedOffsets when requesting/emitting tuples
-        prepareSpout(messageCount);
+        initializeSpout(messageCount);
 
         //Try to emit all messages. Ensure only maxUncommittedOffsets are emitted
         ArgumentCaptor<KafkaSpoutMessageId> messageIds = ArgumentCaptor.forClass(KafkaSpoutMessageId.class);
         for (int i = 0; i < messageCount; i++) {
             spout.nextTuple();
-        }
+        };
         verify(collector, times(maxUncommittedOffsets)).emit(
-            any(),
-            any(),
+            anyObject(),
+            anyObject(),
             messageIds.capture());
         return messageIds;
     }
@@ -122,7 +133,6 @@ public class MaxUncommittedOffsetTest {
                 spout.ack(messageId);
             }
             Time.advanceTime(commitOffsetPeriodMs + KafkaSpout.TIMER_DELAY_MS);
-
             spout.nextTuple();
 
             //Now check that the spout will emit another maxUncommittedOffsets messages
@@ -130,9 +140,9 @@ public class MaxUncommittedOffsetTest {
                 spout.nextTuple();
             }
             verify(collector, times(maxUncommittedOffsets)).emit(
-                any(),
-                any(),
-                any());
+                anyObject(),
+                anyObject(),
+                anyObject());
         }
     }
 
@@ -159,9 +169,9 @@ public class MaxUncommittedOffsetTest {
             }
 
             verify(collector, times(0)).emit(
-                any(),
-                any(),
-                any());
+                anyObject(),
+                anyObject(),
+                anyObject());
         }
     }
 
@@ -178,60 +188,8 @@ public class MaxUncommittedOffsetTest {
 
     @Test
     public void testNextTupleWillNotEmitMoreThanMaxUncommittedOffsetsPlusMaxPollRecordsMessages() throws Exception {
-        /*
-        For each partition the spout is allowed to retry all tuples between the committed offset, and maxUncommittedOffsets ahead.
-        It is not allowed to retry tuples past that limit.
-        This makes the actual limit per partition maxUncommittedOffsets + maxPollRecords - 1,
-        reached if the tuple at the maxUncommittedOffsets limit is the earliest retriable tuple,
-        or if the spout is 1 tuple below the limit, and receives a full maxPollRecords tuples in the poll.
-         */
-
-        try (Time.SimulatedTime simulatedTime = new Time.SimulatedTime()) {
-            //First check that maxUncommittedOffsets is respected when emitting from scratch
-            ArgumentCaptor<KafkaSpoutMessageId> messageIds = emitMaxUncommittedOffsetsMessagesAndCheckNoMoreAreEmitted(numMessages);
-            reset(collector);
-
-            //Fail only the last tuple
-            List<KafkaSpoutMessageId> messageIdList = messageIds.getAllValues();
-            KafkaSpoutMessageId failedMessageId = messageIdList.get(messageIdList.size() - 1);
-            spout.fail(failedMessageId);
-
-            //Offset 0 to maxUncommittedOffsets - 2 are pending, maxUncommittedOffsets - 1 is failed but not retriable
-            //The spout should not emit any more tuples.
-            spout.nextTuple();
-            verify(collector, never()).emit(
-                any(),
-                any(),
-                any());
-
-            //Allow the failed record to retry
-            Time.advanceTimeSecs(initialRetryDelaySecs);
-            for (int i = 0; i < maxPollRecords; i++) {
-                spout.nextTuple();
-            }
-            ArgumentCaptor<KafkaSpoutMessageId> secondRunMessageIds = ArgumentCaptor.forClass(KafkaSpoutMessageId.class);
-            verify(collector, times(maxPollRecords)).emit(
-                any(),
-                any(),
-                secondRunMessageIds.capture());
-            reset(collector);
-            assertThat(secondRunMessageIds.getAllValues().get(0), is(failedMessageId));
-            
-            //There should now be maxUncommittedOffsets + maxPollRecords emitted in all.
-            //Fail the last emitted tuple and verify that the spout won't retry it because it's above the emit limit.
-            spout.fail(secondRunMessageIds.getAllValues().get(secondRunMessageIds.getAllValues().size() - 1));
-            Time.advanceTimeSecs(initialRetryDelaySecs);
-            spout.nextTuple();
-            verify(collector, never()).emit(any(), any(), any());
-        }
-    }
-
-    @Test
-    public void testNextTupleWillAllowRetryForTuplesBelowEmitLimit() throws Exception {
-        /*
-        For each partition the spout is allowed to retry all tuples between the committed offset, and maxUncommittedOffsets ahead.
-        It must retry tuples within that limit, even if more tuples were emitted.
-         */
+        //The upper bound on uncommitted offsets should be maxUncommittedOffsets + maxPollRecords - 1
+        //This is reachable by emitting maxUncommittedOffsets messages, acking the first message, then polling.
         try (Time.SimulatedTime simulatedTime = new Time.SimulatedTime()) {
             //First check that maxUncommittedOffsets is respected when emitting from scratch
             ArgumentCaptor<KafkaSpoutMessageId> messageIds = emitMaxUncommittedOffsetsMessagesAndCheckNoMoreAreEmitted(numMessages);
@@ -239,17 +197,17 @@ public class MaxUncommittedOffsetTest {
 
             failAllExceptTheFirstMessageThenCommit(messageIds);
 
-            //Offset 0 is committed, 1 to maxUncommittedOffsets - 1 are failed but not retriable
+            //Offset 0 is acked, 1 to maxUncommittedOffsets - 1 are failed
             //The spout should now emit another maxPollRecords messages
-            //This is allowed because the committed message brings the numUncommittedOffsets below the cap
+            //This is allowed because the acked message brings the numUncommittedOffsets below the cap
             for (int i = 0; i < maxUncommittedOffsets; i++) {
                 spout.nextTuple();
             }
 
             ArgumentCaptor<KafkaSpoutMessageId> secondRunMessageIds = ArgumentCaptor.forClass(KafkaSpoutMessageId.class);
             verify(collector, times(maxPollRecords)).emit(
-                any(),
-                any(),
+                anyObject(),
+                anyObject(),
                 secondRunMessageIds.capture());
             reset(collector);
 
@@ -261,29 +219,28 @@ public class MaxUncommittedOffsetTest {
                 .collect(Collectors.toList());
             assertThat("Expected the newly emitted messages to have no overlap with the first batch", secondRunOffsets.removeAll(firstRunOffsets), is(false));
 
-            //Offset 0 is committed, 1 to maxUncommittedOffsets-1 are failed, maxUncommittedOffsets to maxUncommittedOffsets + maxPollRecords-1 are emitted
-            //Fail the last tuples so only offset 0 is not failed.
-            //Advance time so the failed tuples become ready for retry, and check that the spout will emit retriable tuples
-            //for all the failed tuples that are within maxUncommittedOffsets tuples of the committed offset
-            //This means 1 to maxUncommitteddOffsets, but not maxUncommittedOffsets+1...maxUncommittedOffsets+maxPollRecords-1
-            for (KafkaSpoutMessageId msgId : secondRunMessageIds.getAllValues()) {
-                spout.fail(msgId);
-            }
+            //Offset 0 is acked, 1 to maxUncommittedOffsets-1 are failed, maxUncommittedOffsets to maxUncommittedOffsets + maxPollRecords-1 are emitted
+            //There are now maxUncommittedOffsets-1 + maxPollRecords records emitted past the last committed offset
+            //Advance time so the failed tuples become ready for retry, and check that the spout will emit retriable tuples as long as numNonRetriableEmittedTuples < maxUncommittedOffsets
+            
+            int numNonRetriableEmittedTuples = maxPollRecords; //The other tuples were failed and are becoming retriable
+            int allowedPolls = (int)Math.ceil((maxUncommittedOffsets - numNonRetriableEmittedTuples)/(double)maxPollRecords);
             Time.advanceTimeSecs(initialRetryDelaySecs);
             for (int i = 0; i < numMessages; i++) {
                 spout.nextTuple();
             }
             ArgumentCaptor<KafkaSpoutMessageId> thirdRunMessageIds = ArgumentCaptor.forClass(KafkaSpoutMessageId.class);
-            verify(collector, times(maxUncommittedOffsets)).emit(
-                anyString(),
-                anyList(),
+            verify(collector, times(allowedPolls*maxPollRecords)).emit(
+                anyObject(),
+                anyObject(),
                 thirdRunMessageIds.capture());
             reset(collector);
 
             List<Long> thirdRunOffsets = thirdRunMessageIds.getAllValues().stream()
                 .map(msgId -> msgId.offset())
                 .collect(Collectors.toList());
-            assertThat("Expected the emitted messages to be retries of the failed tuples from the first batch, plus the first failed tuple from the second batch", thirdRunOffsets, everyItem(either(isIn(firstRunOffsets)).or(is(secondRunMessageIds.getAllValues().get(0).offset()))));
+            assertThat("Expected the emitted messages to be retries of the failed tuples from the first batch", thirdRunOffsets, everyItem(isIn(firstRunOffsets)));
         }
     }
+
 }

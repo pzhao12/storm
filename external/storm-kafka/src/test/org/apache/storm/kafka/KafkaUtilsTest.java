@@ -126,7 +126,7 @@ public class KafkaUtilsTest {
     }
 
     @Test
-    public void getOffsetFromConfigAndForceFromStart() {
+    public void getOffsetFromConfigAndFroceFromStart() {
         config.ignoreZkOffsets = true;
         config.startOffsetTime = OffsetRequest.EarliestTime();
         createTopicAndSendMessage();

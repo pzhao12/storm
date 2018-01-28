@@ -62,14 +62,6 @@ RandomSentenceSpout.prototype.nextTuple = function(done) {
     },100);
 }
 
-RandomSentenceSpout.prototype.activate = function(done) {
-    done();
-}
-
-RandomSentenceSpout.prototype.deactivate = function(done) {
-    done();
-}
-
 RandomSentenceSpout.prototype.createNextTupleId = function() {
     var id = this.runningTupleId;
     this.runningTupleId++;

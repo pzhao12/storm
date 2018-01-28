@@ -33,6 +33,7 @@ import org.apache.storm.hdfs.trident.format.SimpleFileNameFormat;
 import org.apache.storm.hdfs.trident.rotation.FileRotationPolicy;
 import org.apache.storm.hdfs.trident.rotation.FileSizeRotationPolicy;
 import org.apache.storm.hdfs.trident.rotation.TimedRotationPolicy;
+import org.apache.storm.sql.runtime.DataSource;
 import org.apache.storm.sql.runtime.DataSourcesProvider;
 import org.apache.storm.sql.runtime.FieldInfo;
 import org.apache.storm.sql.runtime.IOutputSerializer;
@@ -117,6 +118,12 @@ public class HdfsDataSourcesProvider implements DataSourcesProvider {
     @Override
     public String scheme() {
         return "hdfs";
+    }
+
+    @Override
+    public DataSource construct(URI uri, String inputFormatClass, String outputFormatClass,
+                                List<FieldInfo> fields) {
+        throw new UnsupportedOperationException();
     }
 
     @Override

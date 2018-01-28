@@ -22,7 +22,6 @@ import org.apache.storm.generated.ExecutorStats;
 import org.apache.storm.grouping.LoadMapping;
 
 import java.util.List;
-import org.apache.storm.utils.DisruptorQueue;
 
 public interface IRunningExecutor {
 
@@ -31,6 +30,4 @@ public interface IRunningExecutor {
     void credentialsChanged(Credentials credentials);
     void loadChanged(LoadMapping loadMapping);
     boolean getBackPressureFlag();
-    DisruptorQueue getReceiveQueue();
-    DisruptorQueue getSendQueue();
 }

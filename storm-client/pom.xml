@@ -87,10 +87,6 @@
                     <groupId>javax.servlet</groupId>
                     <artifactId>servlet-api</artifactId>
                 </exclusion>
-                <exclusion>
-                    <groupId>javax.servlet</groupId>
-                    <artifactId>javax.servlet-api</artifactId>
-                </exclusion>
             </exclusions>
         </dependency>
 
@@ -114,12 +110,6 @@
         <dependency>
             <groupId>com.lmax</groupId>
             <artifactId>disruptor</artifactId>
-        </dependency>
-        
-        <!-- JAXB -->
-        <dependency>
-            <groupId>javax.xml.bind</groupId>
-            <artifactId>jaxb-api</artifactId>
         </dependency>
 
         <!-- json -->
@@ -168,7 +158,7 @@
         <!-- servlet -->
         <dependency>
             <groupId>javax.servlet</groupId>
-            <artifactId>javax.servlet-api</artifactId>
+            <artifactId>servlet-api</artifactId>
         </dependency>
 
         <!-- belows are transitive dependencies which are version managed in storm pom -->
@@ -187,17 +177,23 @@
         <!-- end of transitive dependency management -->
 
         <!-- test -->
+        <!-- hamcrest-core dependency is shaded inside the mockito-all and junit depends on newer version of hamcrest-core.
+        To give higher precedence to classes from newer version of hamcrest-core, Junit has been placed above mockito.
+         -->
         <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
+            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.mockito</groupId>
             <artifactId>mockito-core</artifactId>
+            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.hamcrest</groupId>
-            <artifactId>java-hamcrest</artifactId>
+            <artifactId>hamcrest-library</artifactId>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 
@@ -261,7 +257,7 @@
                 <!--Note - the version would be inherited-->
                 <configuration>
                     <excludes>**/generated/**</excludes>
-                    <maxAllowedViolations>10263</maxAllowedViolations>
+                    <maxAllowedViolations>10785</maxAllowedViolations>
                 </configuration>
             </plugin>
             <plugin>

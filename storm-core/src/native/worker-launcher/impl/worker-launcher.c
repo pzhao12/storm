@@ -185,11 +185,7 @@ int change_user(uid_t user, gid_t group) {
 
 char *get_container_launcher_file(const char* work_dir) {
   char *ret;
-  int bytesPrinted = asprintf(&ret, "%s/%s", work_dir, CONTAINER_SCRIPT);
-  if (bytesPrinted == -1) {
-    //asprintf failed, stop the process
-    exit(EXIT_FAILURE);
-  }
+  asprintf(&ret, "%s/%s", work_dir, CONTAINER_SCRIPT);
   return ret;
 }
 
@@ -567,11 +563,7 @@ static int remove_files_from_dir(const char *path) {
           continue;
       }
       char *newpath;
-      int bytesPrinted = asprintf(&newpath, "%s/%s", path, entry->d_name);
-      if (bytesPrinted == -1) {
-        //asprintf failed, stop the process
-        exit(EXIT_FAILURE);
-      }
+      asprintf(&newpath, "%s/%s", path, entry->d_name);
       if(newpath) {
         // Recur on anything in the directory.
         int new_exit = recursive_delete(newpath, 0);

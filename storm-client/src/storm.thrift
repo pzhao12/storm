@@ -188,8 +188,6 @@ struct SupervisorSummary {
   7: optional map<string, double> total_resources;
   8: optional double used_mem;
   9: optional double used_cpu;
-  10: optional double fragmented_mem;
-  11: optional double fragmented_cpu;
 }
 
 struct NimbusSummary {
@@ -418,10 +416,6 @@ struct RebalanceOptions {
   1: optional i32 wait_secs;
   2: optional i32 num_workers;
   3: optional map<string, i32> num_executors;
-  4: optional map<string, map<string, double>> topology_resources_overrides;
-  5: optional string topology_conf_overrides;
-  //This value is not intended to be explicitly set by end users and will be ignored if they do
-  6: optional string principal
 }
 
 struct Credentials {
@@ -496,8 +490,6 @@ struct WorkerResources {
     3: optional double cpu;
     4: optional double shared_mem_on_heap; //This is just for accounting mem_on_heap should be used for enforcement
     5: optional double shared_mem_off_heap; //This is just for accounting mem_off_heap should be used for enforcement
-    6: optional map<string, double> resources; // Generic resources Map
-    7: optional map<string, double> shared_resources; // Shared Generic resources Map
 }
 struct Assignment {
     1: required string master_code_dir;
@@ -672,26 +664,6 @@ struct OwnerResourceSummary {
   18: optional double assigned_off_heap_memory;
 }
 
-struct WorkerMetricPoint {
-  1: required string metricName;
-  2: required i64 timestamp;
-  3: required double metricValue;
-  4: required string componentId;
-  5: required string executorId;
-  6: required string streamId;
-}
-
-struct WorkerMetricList {
-  1: list<WorkerMetricPoint> metrics;
-}
-
-struct WorkerMetrics {
-  1: required string topologyId;
-  2: required i32 port;
-  3: required string hostname;
-  4: required WorkerMetricList metricList;
-}
-
 service Nimbus {
   void submitTopology(1: string name, 2: string uploadedJarLocation, 3: string jsonConf, 4: StormTopology topology) throws (1: AlreadyAliveException e, 2: InvalidTopologyException ite, 3: AuthorizationException aze);
   void submitTopologyWithOpts(1: string name, 2: string uploadedJarLocation, 3: string jsonConf, 4: StormTopology topology, 5: SubmitOptions options) throws (1: AlreadyAliveException e, 2: InvalidTopologyException ite, 3: AuthorizationException aze);
@@ -768,7 +740,6 @@ service Nimbus {
   StormTopology getUserTopology(1: string id) throws (1: NotAliveException e, 2: AuthorizationException aze);
   TopologyHistoryInfo getTopologyHistory(1: string user) throws (1: AuthorizationException aze);
   list<OwnerResourceSummary> getOwnerResourceSummaries (1: string owner) throws (1: AuthorizationException aze);
-  void processWorkerMetrics(1: WorkerMetrics metrics);
 }
 
 struct DRPCRequest {
@@ -857,5 +828,3 @@ exception HBAuthorizationException {
 exception HBExecutionException {
   1: required string msg;
 }
-
-

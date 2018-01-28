@@ -46,7 +46,7 @@
   (:import [org.apache.storm.generated AuthorizationException ProfileRequest ProfileAction NodeInfo])
   (:import [org.apache.storm.security.auth AuthUtils])
   (:import [org.apache.storm.utils VersionInfo ConfigUtils Utils WebAppUtils])
-  (:import [org.apache.storm Config Constants])
+  (:import [org.apache.storm Config])
   (:import [java.io File])
   (:import [java.net URLEncoder URLDecoder])
   (:import [org.json.simple JSONValue])
@@ -131,20 +131,8 @@
   (let [ret (group-by #(.get_component_id ^ExecutorSummary %) summs)]
     (into (sorted-map) ret )))
 
-(defn secure-logviewer? [secure-ui?]
-  ;; if ui is using HTTPS, or logviewer.https.port is non-negative,
-  ;; we should use HTTPS for logviewer
-  (if (and (not-nil? (*STORM-CONF* LOGVIEWER-HTTPS-PORT))
-          (>= (*STORM-CONF* LOGVIEWER-HTTPS-PORT) 0))
-    true
-    (if secure-ui?
-       (do
-         (log-warn "Logviewer must use HTTPS because UI is using HTTPS.")
-         true)
-       false)))
-
 (defn logviewer-link [host fname secure?]
-  (if (secure-logviewer? secure?)
+  (if (and secure? (*STORM-CONF* LOGVIEWER-HTTPS-PORT))
     (UIHelpers/urlFormat "https://%s:%s/api/v1/log?file=%s"
       (to-array
         [host
@@ -166,27 +154,11 @@
     (let [fname (WebAppUtils/logsFilename topology-id (str port))]
       (logviewer-link host fname secure?))))
 
-(defn nimbus-log-link [host secure?]
-  (if (secure-logviewer? secure?)
-    (UIHelpers/urlFormat "https://%s:%s/api/v1/daemonlog?file=nimbus.log" (to-array [host (*STORM-CONF* LOGVIEWER-HTTPS-PORT)]))
-    (UIHelpers/urlFormat "http://%s:%s/api/v1/daemonlog?file=nimbus.log" (to-array [host (*STORM-CONF* LOGVIEWER-PORT)]))))
+(defn nimbus-log-link [host]
+  (UIHelpers/urlFormat "http://%s:%s/api/v1/daemonlog?file=nimbus.log" (to-array [host (*STORM-CONF* LOGVIEWER-PORT)])))
 
-(defn supervisor-log-link [host secure?]
-  (if (secure-logviewer? secure?)
-    (UIHelpers/urlFormat "https://%s:%s/api/v1/daemonlog?file=supervisor.log" (to-array [host (*STORM-CONF* LOGVIEWER-HTTPS-PORT)]))
-    (UIHelpers/urlFormat "http://%s:%s/api/v1/daemonlog?file=supervisor.log" (to-array [host (*STORM-CONF* LOGVIEWER-PORT)]))))
-
-(defn logviewer-scheme [secure?]
-  (if (secure-logviewer? secure?) "https" "http"))
-
-(defn logviewer-port []
-  (if (and (not-nil? (*STORM-CONF* LOGVIEWER-HTTPS-PORT)) (>= (*STORM-CONF* LOGVIEWER-HTTPS-PORT) 0))
-    (*STORM-CONF* LOGVIEWER-HTTPS-PORT)
-    (*STORM-CONF* LOGVIEWER-PORT)))
-
-
-(defn secure? [scheme]
-  (= scheme :https))
+(defn supervisor-log-link [host]
+  (UIHelpers/urlFormat "http://%s:%s/api/v1/daemonlog?file=supervisor.log" (to-array [host (*STORM-CONF* LOGVIEWER-PORT)])))
 
 (defn get-error-data
   [error]
@@ -211,18 +183,12 @@
   (if error
     (.get_error_time_secs ^ErrorInfo error)))
 
-(defn worker-dump-link [host port topology-id secure?]
-  (if (secure-logviewer? secure?)
-    (UIHelpers/urlFormat "https://%s:%s/api/v1/dumps/%s/%s"
-                         (to-array [(URLEncoder/encode host)
-                                    (*STORM-CONF* LOGVIEWER-HTTPS-PORT)
-                                    (URLEncoder/encode topology-id)
-                                    (str (URLEncoder/encode host) ":" (URLEncoder/encode port))]))
-    (UIHelpers/urlFormat "http://%s:%s/api/v1/dumps/%s/%s"
-                         (to-array [(URLEncoder/encode host)
-                                    (*STORM-CONF* LOGVIEWER-PORT)
-                                    (URLEncoder/encode topology-id)
-                                    (str (URLEncoder/encode host) ":" (URLEncoder/encode port))]))))
+(defn worker-dump-link [host port topology-id]
+  (UIHelpers/urlFormat "http://%s:%s/api/v1/dumps/%s/%s"
+    (to-array [(URLEncoder/encode host)
+              (*STORM-CONF* LOGVIEWER-PORT)
+              (URLEncoder/encode topology-id)
+              (str (URLEncoder/encode host) ":" (URLEncoder/encode port))])))
 
 (defn stats-times
   [stats-map]
@@ -374,12 +340,12 @@
   (let [tplg-main-class (if (not-nil? tplg-config) (trim (tplg-config "topologyMainClass")))
         tplg-main-class-args (if (not-nil? tplg-config) (tplg-config "topologyMainClassArgs"))
         storm-home (System/getProperty "storm.home")
-        storm-conf-dir (str storm-home File/separator "conf")
+        storm-conf-dir (str storm-home WebAppUtils/FILE_PATH_SEPARATOR "conf")
         storm-log-dir (if (not-nil? (*STORM-CONF* "storm.log.dir")) (*STORM-CONF* "storm.log.dir")
-                                                                    (str storm-home File/separator "logs"))
-        storm-libs (str storm-home File/separator "lib" File/separator "*")
-        java-cmd (str (System/getProperty "java.home") File/separator "bin" File/separator "java")
-        storm-cmd (str storm-home File/separator "bin" File/separator "storm")
+                                                                    (str storm-home WebAppUtils/FILE_PATH_SEPARATOR "logs"))
+        storm-libs (str storm-home WebAppUtils/FILE_PATH_SEPARATOR "lib" WebAppUtils/FILE_PATH_SEPARATOR "*")
+        java-cmd (str (System/getProperty "java.home") WebAppUtils/FILE_PATH_SEPARATOR "bin" WebAppUtils/FILE_PATH_SEPARATOR "java")
+        storm-cmd (str storm-home WebAppUtils/FILE_PATH_SEPARATOR "bin" WebAppUtils/FILE_PATH_SEPARATOR "storm")
         tplg-cmd-response (apply sh
                             (flatten
                               [storm-cmd "jar" tplg-jar-file tplg-main-class
@@ -425,20 +391,16 @@
            resourceSummary (if (> (.size sups) 0)
                              (reduce #(map + %1 %2)
                                (for [^SupervisorSummary s sups
-                                     :let [sup-total-mem (get (.get_total_resources s) Constants/COMMON_TOTAL_MEMORY_RESOURCE_NAME (get (.get_total_resources s) Config/SUPERVISOR_MEMORY_CAPACITY_MB))
-                                           sup-total-cpu (get (.get_total_resources s) Constants/COMMON_CPU_RESOURCE_NAME (get (.get_total_resources s) Config/SUPERVISOR_CPU_CAPACITY))
+                                     :let [sup-total-mem (get (.get_total_resources s) Config/SUPERVISOR_MEMORY_CAPACITY_MB)
+                                           sup-total-cpu (get (.get_total_resources s) Config/SUPERVISOR_CPU_CAPACITY)
                                            sup-avail-mem (max (- sup-total-mem (.get_used_mem s)) 0.0)
-                                           sup-avail-cpu (max (- sup-total-cpu (.get_used_cpu s)) 0.0)
-                                           sup-fragmented-cpu (.get_fragmented_cpu s)
-                                           sup-fragmented-mem (.get_fragmented_mem s)]]
-                                 [sup-total-mem sup-total-cpu sup-avail-mem sup-avail-cpu sup-fragmented-cpu sup-fragmented-mem]))
-                             [0.0 0.0 0.0 0.0 0.0 0.0])
+                                           sup-avail-cpu (max (- sup-total-cpu (.get_used_cpu s)) 0.0)]]
+                                 [sup-total-mem sup-total-cpu sup-avail-mem sup-avail-cpu]))
+                             [0.0 0.0 0.0 0.0])
            total-mem (nth resourceSummary 0)
            total-cpu (nth resourceSummary 1)
            avail-mem (nth resourceSummary 2)
-           avail-cpu (nth resourceSummary 3)
-           fragmented-cpu (nth resourceSummary 4)
-           fragmented-mem (nth resourceSummary 5)]
+           avail-cpu (nth resourceSummary 3)]
        {"user" user
         "stormVersion" STORM-VERSION
         "supervisors" (count sups)
@@ -453,8 +415,6 @@
         "totalCpu" total-cpu
         "availMem" avail-mem
         "availCpu" avail-cpu
-        "fragmentedMem" fragmented-mem
-        "fragmentedCpu" fragmented-cpu
         "memAssignedPercentUtil" (if (and (not (nil? total-mem)) (> total-mem 0.0)) (format "%.1f" (* (/ (- total-mem avail-mem) total-mem) 100.0)) 0.0)
         "cpuAssignedPercentUtil" (if (and (not (nil? total-cpu)) (> total-cpu 0.0)) (format "%.1f" (* (/ (- total-cpu avail-cpu) total-cpu) 100.0)) 0.0)})))
 
@@ -471,12 +431,12 @@
     ))
 
 (defn nimbus-summary
-  ([secure?]
+  ([]
     (thrift/with-configured-nimbus-connection nimbus
       (nimbus-summary
-        (.get_nimbuses (.getClusterInfo ^Nimbus$Client nimbus)) secure?)))
-  ([nimbuses secure?]
-    (let [nimbus-seeds (set (map #(str %1 ":" (*STORM-CONF* NIMBUS-THRIFT-PORT)) (remove #(Utils/isLocalhostAddress %) (set (*STORM-CONF* NIMBUS-SEEDS)))))
+        (.get_nimbuses (.getClusterInfo ^Nimbus$Client nimbus)))))
+  ([nimbuses]
+    (let [nimbus-seeds (set (map #(str %1 ":" (*STORM-CONF* NIMBUS-THRIFT-PORT)) (set (*STORM-CONF* NIMBUS-SEEDS))))
           alive-nimbuses (set (map #(str (.get_host %1) ":" (.get_port %1)) nimbuses))
           offline-nimbuses (clojure.set/difference nimbus-seeds alive-nimbuses)
           offline-nimbuses-summary (map #(convert-to-nimbus-summary %1) offline-nimbuses)]
@@ -487,7 +447,7 @@
          {
           "host" (.get_host n)
           "port" (.get_port n)
-          "nimbusLogLink" (nimbus-log-link (.get_host n) secure?)
+          "nimbusLogLink" (nimbus-log-link (.get_host n))
           "status" (if (.is_isLeader n) "Leader" "Not a Leader")
           "version" (.get_version n)
           "nimbusUpTime" (UIHelpers/prettyUptimeSec uptime)
@@ -514,12 +474,12 @@
      "workerLogLink" (worker-log-link host port topology-id secure?)}))
 
 (defn supervisor-summary-to-json 
-  [summary secure?]
+  [summary]
   (let [slotsTotal (.get_num_workers summary)
         slotsUsed (.get_num_used_workers summary)
         slotsFree (max (- slotsTotal slotsUsed) 0)
-        totalMem (get (.get_total_resources summary) Constants/COMMON_TOTAL_MEMORY_RESOURCE_NAME (get (.get_total_resources summary) Config/SUPERVISOR_MEMORY_CAPACITY_MB))
-        totalCpu (get (.get_total_resources summary) Constants/COMMON_CPU_RESOURCE_NAME (get (.get_total_resources summary) Config/SUPERVISOR_CPU_CAPACITY))
+        totalMem (get (.get_total_resources summary) Config/SUPERVISOR_MEMORY_CAPACITY_MB)
+        totalCpu (get (.get_total_resources summary) Config/SUPERVISOR_CPU_CAPACITY)
         usedMem (.get_used_mem summary)
         usedCpu (.get_used_cpu summary)
         availMem (max (- totalMem usedMem) 0)
@@ -535,7 +495,7 @@
    "totalCpu" totalCpu
    "usedMem" usedMem
    "usedCpu" usedCpu
-   "logLink" (supervisor-log-link (.get_host summary) secure?)
+   "logLink" (supervisor-log-link (.get_host summary))
    "availMem" availMem
    "availCpu" availCpu
    "version" (.get_version summary)}))
@@ -550,20 +510,20 @@
   ([^SupervisorPageInfo supervisor-page-info secure?]
     ;; ask nimbus to return supervisor workers + any details user is allowed
     ;; access on a per-topology basis (i.e. components)
-    (let [supervisors-json (map  #(supervisor-summary-to-json % secure?) (.get_supervisor_summaries supervisor-page-info))]
+    (let [supervisors-json (map supervisor-summary-to-json (.get_supervisor_summaries supervisor-page-info))]
       {"supervisors" supervisors-json
        "schedulerDisplayResource" (*STORM-CONF* SCHEDULER-DISPLAY-RESOURCE)
        "workers" (into [] (for [^WorkerSummary worker-summary (.get_worker_summaries supervisor-page-info)]
                             (worker-summary-to-json secure? worker-summary)))})))
 
 (defn supervisor-summary
-  ([secure?]
+  ([]
    (thrift/with-configured-nimbus-connection nimbus
                 (supervisor-summary
-                  (.get_supervisors (.getClusterInfo ^Nimbus$Client nimbus)) secure?)))
-  ([summs secure?]
+                  (.get_supervisors (.getClusterInfo ^Nimbus$Client nimbus)))))
+  ([summs]
    {"supervisors" (for [^SupervisorSummary s summs]
-                    (supervisor-summary-to-json s secure?))
+                    (supervisor-summary-to-json s))
     "schedulerDisplayResource" (*STORM-CONF* SCHEDULER-DISPLAY-RESOURCE)}))
 
 (defnk get-topologies-map [summs :conditional (fn [t] true) :keys nil]
@@ -1061,7 +1021,7 @@
      :timestamp  (.get_time_stamp request)}))
 
 (defn get-active-profile-actions
-  [nimbus topology-id component secure?]
+  [nimbus topology-id component]
   (let [profile-actions  (.getComponentPendingProfileActions nimbus
                                                topology-id
                                                component
@@ -1070,7 +1030,7 @@
         active-actions (map (fn [profile-action]
                               {"host" (:host profile-action)
                                "port" (str (:port profile-action))
-                               "dumplink" (worker-dump-link (:host profile-action) (str (:port profile-action)) topology-id secure?)
+                               "dumplink" (worker-dump-link (:host profile-action) (str (:port profile-action)) topology-id)
                                "timestamp" (str (- (:timestamp profile-action) (System/currentTimeMillis)))})
                             latest-profile-actions)]
     (log-message "Latest-active actions are: " (pr-str active-actions))
@@ -1125,7 +1085,7 @@
        "profilingAndDebuggingCapable" (not (Utils/isOnWindows))
        "profileActionEnabled" (*STORM-CONF* WORKER-PROFILER-ENABLED)
        "profilerActive" (if (*STORM-CONF* WORKER-PROFILER-ENABLED)
-                          (get-active-profile-actions nimbus topology-id component secure?)
+                          (get-active-profile-actions nimbus topology-id component)
                           [])))))
 
 (defn unpack-owner-resource-summary [summary]
@@ -1258,11 +1218,11 @@
       (json-response (assoc (cluster-summary user)
                           "bugtracker-url" (*STORM-CONF* UI-PROJECT-BUGTRACKER-URL)
                           "central-log-url" (*STORM-CONF* UI-CENTRAL-LOGGING-URL)) (:callback m))))
-  (GET "/api/v1/nimbus/summary" [:as {:keys [cookies servlet-request scheme]} & m]
+  (GET "/api/v1/nimbus/summary" [:as {:keys [cookies servlet-request]} & m]
     (.mark ui:num-nimbus-summary-http-requests)
     (populate-context! servlet-request)
     (assert-authorized-user "getClusterInfo")
-    (json-response (nimbus-summary (secure? scheme)) (:callback m)))
+    (json-response (nimbus-summary) (:callback m)))
   (GET "/api/v1/owner-resources" [:as {:keys [cookies servlet-request scheme]} id & m]
     (.mark ui:num-get-owner-resource-summaries-http-requests)
     (populate-context! servlet-request)
@@ -1276,13 +1236,12 @@
   (GET "/api/v1/history/summary" [:as {:keys [cookies servlet-request]} & m]
     (let [user (.getUserName http-creds-handler servlet-request)]
       (json-response (topology-history-info user) (:callback m))))
-  (GET "/api/v1/supervisor/summary" [:as {:keys [cookies servlet-request scheme]} & m]
+  (GET "/api/v1/supervisor/summary" [:as {:keys [cookies servlet-request]} & m]
     (.mark ui:num-supervisor-summary-http-requests)
     (populate-context! servlet-request)
     (assert-authorized-user "getClusterInfo")
-    (json-response (assoc (supervisor-summary (secure? scheme))
-                     "logviewerPort" (logviewer-port)
-                     "logviewerScheme" (logviewer-scheme (secure? scheme))) (:callback m)))
+    (json-response (assoc (supervisor-summary)
+                     "logviewerPort" (*STORM-CONF* LOGVIEWER-PORT)) (:callback m)))
   (GET "/api/v1/supervisor" [:as {:keys [cookies servlet-request scheme]} & m]
     (.mark ui:num-supervisor-http-requests)
     (populate-context! servlet-request)
@@ -1291,25 +1250,23 @@
     ;; that said, if both the id and host are provided, the id wins
     (let [id (:id m)
           host (:host m)]
-      (json-response (assoc (supervisor-page-info id host (check-include-sys? (:sys m)) (secure? scheme))
-                            "logviewerPort" (logviewer-port)
-                            "logviewerScheme" (logviewer-scheme (secure? scheme))) (:callback m))))
+      (json-response (assoc (supervisor-page-info id host (check-include-sys? (:sys m)) (= scheme :https))
+                            "logviewerPort" (*STORM-CONF* LOGVIEWER-PORT)) (:callback m))))
   (GET "/api/v1/topology/summary" [:as {:keys [cookies servlet-request]} & m]
     (.mark ui:num-all-topologies-summary-http-requests)
     (populate-context! servlet-request)
     (assert-authorized-user "getClusterInfo")
     (json-response (all-topologies-summary) (:callback m)))
-  (GET  "/api/v1/topology-workers/:id" [:as {:keys [cookies servlet-request scheme]} id & m]
+  (GET  "/api/v1/topology-workers/:id" [:as {:keys [cookies servlet-request]} id & m]
     (let [id (URLDecoder/decode id)]
       (json-response {"hostPortList" (worker-host-port id)
-                      "logviewerPort" (logviewer-port)
-                      "logviewerScheme" (logviewer-scheme (secure? scheme))} (:callback m))))
+                      "logviewerPort" (*STORM-CONF* LOGVIEWER-PORT)} (:callback m))))
   (GET "/api/v1/topology/:id" [:as {:keys [cookies servlet-request scheme]} id & m]
     (.mark ui:num-topology-page-http-requests)
     (populate-context! servlet-request)
     (assert-authorized-user "getTopology" (topology-config id))
     (let [user (get-user-name servlet-request)]
-      (json-response (topology-page id (:window m) (check-include-sys? (:sys m)) user (secure? scheme)) (:callback m))))
+      (json-response (topology-page id (:window m) (check-include-sys? (:sys m)) user (= scheme :https)) (:callback m))))
   (GET "/api/v1/topology/:id/metrics" [:as {:keys [cookies servlet-request]} id & m]
     (.mark ui:num-topology-metric-http-requests)
     (populate-context! servlet-request)
@@ -1337,7 +1294,7 @@
     (assert-authorized-user "getTopology" (topology-config id))
     (let [user (get-user-name servlet-request)]
       (json-response
-          (component-page id component (:window m) (check-include-sys? (:sys m)) user (secure? scheme))
+          (component-page id component (:window m) (check-include-sys? (:sys m)) user (= scheme :https))
           (:callback m))))
   (GET "/api/v1/topology/:id/logconfig" [:as {:keys [cookies servlet-request]} id & m]
     (.mark ui:num-log-config-http-requests)
@@ -1464,7 +1421,7 @@
         (json-response (log-config id) (m "callback")))))
 
   (GET "/api/v1/topology/:id/profiling/start/:host-port/:timeout"
-       [:as {:keys [servlet-request scheme]} id host-port timeout & m]
+       [:as {:keys [servlet-request]} id host-port timeout & m]
        (if (get *STORM-CONF* WORKER-PROFILER-ENABLED)
          (do
            (populate-context! servlet-request)
@@ -1483,8 +1440,7 @@
                                "dumplink" (worker-dump-link
                                            host
                                            port
-                                           id
-                                           (secure? scheme))}
+                                           id)}
                               (m "callback")))))
          (json-profiling-disabled (m "callback"))))
 
@@ -1586,8 +1542,7 @@
     (try
       (handler request)
       (catch Exception ex
-        (let [status-code (if (instance? AuthorizationException ex) 403 500)]
-          (json-response (UIHelpers/exceptionToJson ex status-code) ((:query-params request) "callback") :status status-code))))))
+        (json-response (UIHelpers/exceptionToJson ex) ((:query-params request) "callback") :status 500)))))
 
 (def app
   (handler/site (-> main-routes
@@ -1617,7 +1572,6 @@
       (UIHelpers/stormRunJetty  (int (conf UI-PORT))
                                 (conf UI-HOST)
                                 https-port
-                                header-buffer-size
                                 (reify IConfigurator
                                   (execute [this server]
                                     (UIHelpers/configSsl server
@@ -1630,8 +1584,9 @@
                                       https-ts-password
                                       https-ts-type
                                       https-need-client-auth
-                                      https-want-client-auth
-                                      header-buffer-size)
+                                      https-want-client-auth)
+                                    (doseq [connector (.getConnectors server)]
+                                      (.setRequestHeaderSize connector header-buffer-size))
                                     (UIHelpers/configFilter server (ring.util.servlet/servlet app) filters-confs)))))
    (catch Exception ex
      (log-error ex))))

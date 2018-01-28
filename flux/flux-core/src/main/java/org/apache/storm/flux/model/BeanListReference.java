@@ -15,7 +15,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.storm.flux.model;
 
 import java.util.List;
@@ -26,9 +25,9 @@ import java.util.List;
 public class BeanListReference {
     public List<String> ids;
 
-    public BeanListReference() {}
+    public BeanListReference(){}
 
-    public BeanListReference(List<String> ids) {
+    public BeanListReference(List<String> ids){
         this.ids = ids;
     }
 

@@ -15,17 +15,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.storm.coordination;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
-import org.apache.storm.Config;
 import org.apache.storm.Constants;
 import org.apache.storm.coordination.CoordinatedBolt.SourceArgs;
 import org.apache.storm.generated.GlobalStreamId;
@@ -41,17 +32,22 @@ import org.apache.storm.topology.IRichBolt;
 import org.apache.storm.topology.InputDeclarer;
 import org.apache.storm.topology.TopologyBuilder;
 import org.apache.storm.tuple.Fields;
-
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 public class BatchSubtopologyBuilder {
-    Map<String, Component> bolts = new HashMap<>();
-    Component masterBolt;
-    String masterId;
+    Map<String, Component> _bolts = new HashMap<String, Component>();
+    Component _masterBolt;
+    String _masterId;
     
     public BatchSubtopologyBuilder(String masterBoltId, IBasicBolt masterBolt, Number boltParallelism) {
         Integer p = boltParallelism == null ? null : boltParallelism.intValue();
-        this.masterBolt = new Component(new BasicBoltExecutor(masterBolt), p);
-        masterId = masterBoltId;
+        _masterBolt = new Component(new BasicBoltExecutor(masterBolt), p);
+        _masterId = masterBoltId;
     }
     
     public BatchSubtopologyBuilder(String masterBoltId, IBasicBolt masterBolt) {
@@ -59,7 +55,7 @@ public class BatchSubtopologyBuilder {
     }
     
     public BoltDeclarer getMasterDeclarer() {
-        return new BoltDeclarerImpl(masterBolt);
+        return new BoltDeclarerImpl(_masterBolt);
     }
         
     public BoltDeclarer setBolt(String id, IBatchBolt bolt) {
@@ -80,26 +76,26 @@ public class BatchSubtopologyBuilder {
     
     private BoltDeclarer setBolt(String id, IRichBolt bolt, Number parallelism) {
         Integer p = null;
-        if (parallelism != null) {
-            p = parallelism.intValue();
-        }
+        if(parallelism!=null) p = parallelism.intValue();
         Component component = new Component(bolt, p);
-        bolts.put(id, component);
+        _bolts.put(id, component);
         return new BoltDeclarerImpl(component);
     }
     
     public void extendTopology(TopologyBuilder builder) {
-        BoltDeclarer declarer = builder.setBolt(masterId, new CoordinatedBolt(masterBolt.bolt), masterBolt.parallelism);
-        for (InputDeclaration decl: masterBolt.declarations) {
+        BoltDeclarer declarer = builder.setBolt(_masterId, new CoordinatedBolt(_masterBolt.bolt), _masterBolt.parallelism);
+        for(InputDeclaration decl: _masterBolt.declarations) {
             decl.declare(declarer);
         }
-        declarer.addConfigurations(masterBolt.componentConf);
-        for (String id: bolts.keySet()) {
-            Component component = bolts.get(id);
+        for(Map<String, Object> conf: _masterBolt.componentConfs) {
+            declarer.addConfigurations(conf);
+        }
+        for(String id: _bolts.keySet()) {
+            Component component = _bolts.get(id);
             Map<String, SourceArgs> coordinatedArgs = new HashMap<String, SourceArgs>();
-            for (String c: componentBoltSubscriptions(component)) {
+            for(String c: componentBoltSubscriptions(component)) {
                 SourceArgs source;
-                if (c.equals(masterId)) {
+                if(c.equals(_masterId)) {
                     source = SourceArgs.single();
                 } else {
                     source = SourceArgs.all();
@@ -116,21 +112,21 @@ public class BatchSubtopologyBuilder {
             for (SharedMemory request: component.sharedMemory) {
                 input.addSharedMemory(request);
             }
-            if (!component.componentConf.isEmpty()) {
-                input.addConfigurations(component.componentConf);
+            for(Map<String, Object> conf: component.componentConfs) {
+                input.addConfigurations(conf);
             }
-            for (String c: componentBoltSubscriptions(component)) {
+            for(String c: componentBoltSubscriptions(component)) {
                 input.directGrouping(c, Constants.COORDINATED_STREAM_ID);
             }
-            for (InputDeclaration d: component.declarations) {
+            for(InputDeclaration d: component.declarations) {
                 d.declare(input);
             }
         }        
     }
         
     private Set<String> componentBoltSubscriptions(Component component) {
-        Set<String> ret = new HashSet<>();
-        for (InputDeclaration d: component.declarations) {
+        Set<String> ret = new HashSet<String>();
+        for(InputDeclaration d: component.declarations) {
             ret.add(d.getComponent());
         }
         return ret;
@@ -140,7 +136,7 @@ public class BatchSubtopologyBuilder {
         public final IRichBolt bolt;
         public final Integer parallelism;
         public final List<InputDeclaration> declarations = new ArrayList<>();
-        public final Map<String, Object> componentConf = new HashMap<>();
+        public final List<Map<String, Object>> componentConfs = new ArrayList<>();
         public final Set<SharedMemory> sharedMemory = new HashSet<>();
         
         public Component(IRichBolt bolt, Integer parallelism) {
@@ -149,16 +145,16 @@ public class BatchSubtopologyBuilder {
         }
     }
     
-    private interface InputDeclaration {
+    private static interface InputDeclaration {
         void declare(InputDeclarer declarer);
         String getComponent();
     }
         
     private static class BoltDeclarerImpl extends BaseConfigurationDeclarer<BoltDeclarer> implements BoltDeclarer {
-        Component component;
+        Component _component;
         
         public BoltDeclarerImpl(Component component) {
-            this.component = component;
+            _component = component;
         }
         
         @Override
@@ -444,40 +440,18 @@ public class BatchSubtopologyBuilder {
         }
         
         private void addDeclaration(InputDeclaration declaration) {
-            component.declarations.add(declaration);
+            _component.declarations.add(declaration);
         }
 
         @Override
         public BoltDeclarer addConfigurations(Map<String, Object> conf) {
-            if (conf != null) {
-                component.componentConf.putAll(conf);
-            }
-            return this;
-        }
-
-        @Override
-        public BoltDeclarer addResources(Map<String, Double> resources) {
-            if (resources != null) {
-                Map<String, Double> currentResources = (Map<String, Double>) component.componentConf.computeIfAbsent(
-                    Config.TOPOLOGY_COMPONENT_RESOURCES_MAP, (k) -> new HashMap<>());
-                currentResources.putAll(resources);
-            }
+            _component.componentConfs.add(conf);
             return this;
         }
 
         @Override
         public BoltDeclarer addSharedMemory(SharedMemory request) {
-            component.sharedMemory.add(request);
-            return this;
-        }
-
-        @SuppressWarnings("unchecked")
-        @Override
-        public BoltDeclarer addResource(String resourceName, Number resourceValue) {
-            Map<String, Double> resourcesMap = (Map<String, Double>) component.componentConf.computeIfAbsent(
-                Config.TOPOLOGY_COMPONENT_RESOURCES_MAP, (k) -> new HashMap<>());
-
-            resourcesMap.put(resourceName, resourceValue.doubleValue());
+            _component.sharedMemory.add(request);
             return this;
         }
     }

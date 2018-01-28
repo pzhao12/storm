@@ -29,7 +29,6 @@ import java.io.Serializable;
 public class SolrConfig implements Serializable {
     private final String zkHostString;
     private final int tickTupleInterval;
-    private final boolean enableKerberos;
 
     /**
      * @param zkHostString Zookeeper host string as defined in the {@link CloudSolrClient} constructor
@@ -43,18 +42,8 @@ public class SolrConfig implements Serializable {
      * @param tickTupleInterval interval for tick tuples
      * */
     public SolrConfig(String zkHostString, int tickTupleInterval) {
-        this(zkHostString, tickTupleInterval, false);
-    }
-
-    /**
-     * @param zkHostString Zookeeper host string as defined in the {@link CloudSolrClient} constructor
-     * @param tickTupleInterval interval for tick tuples
-     * @param enableKerberos true to enable kerberos else false
-     * */
-    public SolrConfig(String zkHostString, int tickTupleInterval, boolean enableKerberos) {
         this.zkHostString = zkHostString;
         this.tickTupleInterval = tickTupleInterval;
-        this.enableKerberos =  enableKerberos;
     }
 
     public String getZkHostString() {
@@ -65,7 +54,4 @@ public class SolrConfig implements Serializable {
         return tickTupleInterval;
     }
 
-    public boolean isKerberosEnabled() {
-        return enableKerberos;
-    }
 }

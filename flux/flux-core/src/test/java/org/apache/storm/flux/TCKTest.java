@@ -30,7 +30,6 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 import java.util.Collections;
-import java.util.Properties;
 
 public class TCKTest {
     @Test
@@ -230,17 +229,12 @@ public class TCKTest {
         assertTrue(bolt.getFoo().equals("foo"));
         assertTrue(bolt.getBar().equals("bar"));
         assertTrue(bolt.getFooBar().equals("foobar"));
-
-        assertNotNull(context.getBolt("bolt-2"));
-        assertNotNull(context.getBolt("bolt-3"));
-        assertNotNull(context.getBolt("bolt-4"));
         assertArrayEquals(new TestBolt.TestClass[] {new TestBolt.TestClass("foo"), new TestBolt.TestClass("bar"), new TestBolt.TestClass("baz")}, bolt.getClasses());
     }
 
     @Test
     public void testVariableSubstitution() throws Exception {
-        Properties properties = FluxParser.parseProperties("/configs/test.properties", true);
-        TopologyDef topologyDef = FluxParser.parseResource("/configs/substitution-test.yaml", false, true, properties, true);
+        TopologyDef topologyDef = FluxParser.parseResource("/configs/substitution-test.yaml", false, true, "src/test/resources/configs/test.properties", true);
         assertTrue(topologyDef.validate());
         Config conf = FluxBuilder.buildConfig(topologyDef);
         ExecutionContext context = new ExecutionContext(topologyDef, conf);

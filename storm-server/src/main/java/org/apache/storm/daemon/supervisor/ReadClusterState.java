@@ -41,7 +41,7 @@ import org.apache.storm.generated.LocalAssignment;
 import org.apache.storm.generated.NodeInfo;
 import org.apache.storm.generated.ProfileRequest;
 import org.apache.storm.generated.WorkerResources;
-import org.apache.storm.localizer.AsyncLocalizer;
+import org.apache.storm.localizer.ILocalizer;
 import org.apache.storm.scheduler.ISupervisor;
 import org.apache.storm.utils.LocalState;
 import org.apache.storm.utils.Time;
@@ -60,7 +60,7 @@ public class ReadClusterState implements Runnable, AutoCloseable {
     private final AtomicInteger readRetry = new AtomicInteger(0);
     private final String assignmentId;
     private final ISupervisor iSuper;
-    private final AsyncLocalizer localizer;
+    private final ILocalizer localizer;
     private final ContainerLauncher launcher;
     private final String host;
     private final LocalState localState;
@@ -100,6 +100,13 @@ public class ReadClusterState implements Runnable, AutoCloseable {
         } catch (Exception e) {
             LOG.warn("Error trying to clean up old workers", e);
         }
+
+        //All the slots/assignments should be recovered now, so we can clean up anything that we don't expect to be here
+        try {
+            localizer.cleanupUnusedTopologies();
+        } catch (Exception e) {
+            LOG.warn("Error trying to clean up old topologies", e);
+        }
         
         for (Slot slot: slots.values()) {
             slot.start();
@@ -137,7 +144,6 @@ public class ReadClusterState implements Runnable, AutoCloseable {
                 }
             }
             HashSet<Integer> allPorts = new HashSet<>(assignedPorts);
-            iSuper.assigned(allPorts);
             allPorts.addAll(slots.keySet());
             
             Map<Integer, Set<TopoProfileAction>> filtered = new HashMap<>();

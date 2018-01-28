@@ -19,6 +19,7 @@ package org.apache.storm.sql;
 
 import org.apache.storm.StormSubmitter;
 import org.apache.storm.generated.SubmitOptions;
+import org.apache.storm.sql.runtime.ChannelHandler;
 
 import java.util.Map;
 
@@ -31,6 +32,13 @@ import java.util.Map;
  * batch.
  */
 public abstract class StormSql {
+  /**
+   * Execute the SQL statements in stand-alone mode. The user can retrieve the result by passing in an instance
+   * of {@see ChannelHandler}.
+   */
+  public abstract void execute(Iterable<String> statements,
+                               ChannelHandler handler) throws Exception;
+
   /**
    * Submit the SQL statements to Nimbus and run it as a topology.
    */

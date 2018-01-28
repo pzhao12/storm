@@ -17,12 +17,14 @@ package org.apache.storm.kafka.spout;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.*;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -43,12 +45,6 @@ import org.mockito.InOrder;
 import org.mockito.MockitoAnnotations;
 
 import static org.apache.storm.kafka.spout.config.builder.SingleTopicKafkaSpoutConfiguration.createKafkaSpoutConfigBuilder;
-import static org.mockito.ArgumentMatchers.anyList;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.mock;
-
-import org.apache.storm.kafka.spout.subscription.Subscription;
 
 public class KafkaSpoutRetryLimitTest {
     
@@ -70,7 +66,7 @@ public class KafkaSpoutRetryLimitTest {
     @Before
     public void setUp() {
         MockitoAnnotations.initMocks(this);
-        spoutConfig = createKafkaSpoutConfigBuilder(mock(Subscription.class), -1)
+        spoutConfig = createKafkaSpoutConfigBuilder(-1)
             .setOffsetCommitPeriodMs(offsetCommitPeriodMs)
             .setRetry(ZERO_RETRIES_RETRY_SERVICE)
             .build();
@@ -81,21 +77,24 @@ public class KafkaSpoutRetryLimitTest {
     public void testFailingTupleCompletesAckAfterRetryLimitIsMet() {
         //Spout should ack failed messages after they hit the retry limit
         try (SimulatedTime simulatedTime = new SimulatedTime()) {
-            KafkaSpout<String, String> spout = SpoutWithMockedConsumerSetupHelper.setupSpout(spoutConfig, conf, contextMock, collectorMock, consumerMock, partition);
+            KafkaSpout<String, String> spout = SpoutWithMockedConsumerSetupHelper.setupSpout(spoutConfig, conf, contextMock, collectorMock, consumerMock, Collections.singleton(partition));
             Map<TopicPartition, List<ConsumerRecord<String, String>>> records = new HashMap<>();
+            List<ConsumerRecord<String, String>> recordsForPartition = new ArrayList<>();
             int lastOffset = 3;
-            int numRecords = lastOffset + 1;
-            records.put(partition, SpoutWithMockedConsumerSetupHelper.createRecords(partition, 0, numRecords));
+            for (int i = 0; i <= lastOffset; i++) {
+                recordsForPartition.add(new ConsumerRecord<>(partition.topic(), partition.partition(), i, "key", "value"));
+            }
+            records.put(partition, recordsForPartition);
             
             when(consumerMock.poll(anyLong()))
                 .thenReturn(new ConsumerRecords<>(records));
             
-            for (int i = 0; i < numRecords; i++) {
+            for (int i = 0; i < recordsForPartition.size(); i++) {
                 spout.nextTuple();
             }
             
             ArgumentCaptor<KafkaSpoutMessageId> messageIds = ArgumentCaptor.forClass(KafkaSpoutMessageId.class);
-            verify(collectorMock, times(numRecords)).emit(anyString(), anyList(), messageIds.capture());
+            verify(collectorMock, times(recordsForPartition.size())).emit(anyObject(), anyObject(), messageIds.capture());
             
             for (KafkaSpoutMessageId messageId : messageIds.getAllValues()) {
                 spout.fail(messageId);
@@ -109,9 +108,9 @@ public class KafkaSpoutRetryLimitTest {
             inOrder.verify(consumerMock).commitSync(commitCapture.capture());
             inOrder.verify(consumerMock).poll(anyLong());
 
-            //verify that offset 4 was committed for the given TopicPartition, since processing should resume at 4.
+            //verify that Offset 3 was committed for the given TopicPartition
             assertTrue(commitCapture.getValue().containsKey(partition));
-            assertEquals(lastOffset + 1, ((OffsetAndMetadata) (commitCapture.getValue().get(partition))).offset());
+            assertEquals(lastOffset, ((OffsetAndMetadata) (commitCapture.getValue().get(partition))).offset());
         }
     }
     

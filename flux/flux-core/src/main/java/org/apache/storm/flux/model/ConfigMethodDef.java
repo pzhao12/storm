@@ -15,7 +15,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.storm.flux.model;
 
 import java.util.ArrayList;
@@ -40,17 +39,13 @@ public class ConfigMethodDef {
         return args;
     }
 
-    /**
-     * Set the method arguments.
-     * @param args method parameters
-     */
     public void setArgs(List<Object> args) {
 
         List<Object> newVal = new ArrayList<Object>();
-        for (Object obj : args) {
-            if (obj instanceof LinkedHashMap) {
+        for(Object obj : args){
+            if(obj instanceof LinkedHashMap){
                 Map map = (Map)obj;
-                if (map.containsKey("ref") && map.size() == 1) {
+                if(map.containsKey("ref") && map.size() == 1){
                     newVal.add(new BeanReference((String)map.get("ref")));
                     this.hasReferences = true;
                 } else if (map.containsKey("reflist") && map.size() == 1) {
@@ -66,7 +61,7 @@ public class ConfigMethodDef {
         this.args = newVal;
     }
 
-    public boolean hasReferences() {
+    public boolean hasReferences(){
         return this.hasReferences;
     }
 }

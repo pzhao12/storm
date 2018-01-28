@@ -1,4 +1,3 @@
-<?xml version="1.0" encoding="UTF-8"?>
 <!--
  Licensed to the Apache Software Foundation (ASF) under one or more
  contributor license agreements.  See the NOTICE file distributed with
@@ -21,7 +20,7 @@
     <parent>
         <groupId>org.apache</groupId>
         <artifactId>apache</artifactId>
-        <version>18</version>
+        <version>10</version>
     </parent>
 
 
@@ -247,12 +246,11 @@
         <commons-codec.version>1.6</commons-codec.version>
         <commons-cli.version>1.3.1</commons-cli.version>
         <clj-time.version>0.8.0</clj-time.version>
-        <curator.version>4.0.0</curator.version>
-        <curator-test.version>2.12.0</curator-test.version>
+        <curator.version>2.12.0</curator.version>
         <json-simple.version>1.1</json-simple.version>
-        <ring.version>1.6.2</ring.version>
-        <ring-json.version>0.4.0</ring-json.version>
-        <jetty.version>9.4.7.v20170914</jetty.version>
+        <ring.version>1.3.1</ring.version>
+        <ring-json.version>0.3.1</ring-json.version>
+        <jetty.version>7.6.13.v20130916</jetty.version>
         <clojure.tools.logging.version>0.2.3</clojure.tools.logging.version>
         <clojure.math.numeric-tower.version>0.0.1</clojure.math.numeric-tower.version>
         <carbonite.version>1.5.0</carbonite.version>
@@ -271,7 +269,7 @@
         <metrics.version>3.1.0</metrics.version>
         <clojure.tools.nrepl.version>0.2.3</clojure.tools.nrepl.version>
         <clojure-complete.version>0.2.3</clojure-complete.version>
-        <mockito.version>2.10.0</mockito.version>
+        <mockito.version>1.9.5</mockito.version>
         <conjure.version>2.1.3</conjure.version>
         <zookeeper.version>3.4.6</zookeeper.version>
         <clojure-data-codec.version>0.1.0</clojure-data-codec.version>
@@ -279,15 +277,15 @@
         <hive.version>0.14.0</hive.version>
         <hadoop.version>2.6.1</hadoop.version>
         <hdfs.version>${hadoop.version}</hdfs.version>
-        <hbase.version>1.1.12</hbase.version>
+        <hbase.version>1.1.0</hbase.version>
         <kryo.version>3.0.3</kryo.version>
-        <servlet.version>3.1.0</servlet.version>
+        <servlet.version>2.5</servlet.version>
         <joda-time.version>2.3</joda-time.version>
         <thrift.version>0.9.3</thrift.version>
         <junit.version>4.11</junit.version>
         <metrics-clojure.version>2.5.1</metrics-clojure.version>
         <hdrhistogram.version>2.1.7</hdrhistogram.version>
-        <hamcrest.version>2.0.0.0</hamcrest.version>
+        <hamcrest.version>1.3</hamcrest.version>
         <cassandra.version>2.1.7</cassandra.version>
         <druid.version>0.8.2</druid.version>
         <elasticsearch.version>5.2.2</elasticsearch.version>
@@ -298,19 +296,19 @@
         <jedis.version>2.9.0</jedis.version>
         <rocketmq.version>4.0.0-incubating</rocketmq.version>
 
-        <jackson.version>2.9.2</jackson.version>
+        <jackson.version>2.6.3</jackson.version>
+        <maven-surefire.version>2.18.1</maven-surefire.version>
         <!-- Kafka version used by old storm-kafka spout code -->
         <storm.kafka.version>0.8.2.2</storm.kafka.version>
         <storm.kafka.artifact.id>kafka_2.10</storm.kafka.artifact.id>
 
         <!-- kafka version used by new storm-kafka-client spout code -->
-        <storm.kafka.client.version>0.10.1.0</storm.kafka.client.version>
+        <storm.kafka.client.version>0.10.0.0</storm.kafka.client.version>
 
 
         <!-- Java and clojure build lifecycle test properties are defined here to avoid having to create a default profile -->
         <java.unit.test.exclude>org.apache.storm.testing.IntegrationTest</java.unit.test.exclude>
         <java.unit.test.include>**/Test*.java, **/*Test.java, **/*TestCase.java</java.unit.test.include>    <!--maven surefire plugin default test list-->
-        <java.integration.test.include>no.tests</java.integration.test.include>
         <!-- by default the clojure test set are all clojure tests that are not integration tests. This property is overridden in the profiles -->
         <clojure.test.set>!integration.*</clojure.test.set>
 
@@ -323,11 +321,13 @@
         <j2html.version>1.0.0</j2html.version>
         <jool.version>0.9.12</jool.version>
         <caffeine.version>2.3.5</caffeine.version>
-        <jaxb-version>2.3.0</jaxb-version>
-        <rocksdb-version>5.8.6</rocksdb-version>
 
         <!-- see intellij profile below... This fixes an annoyance with intellij -->
         <provided.scope>provided</provided.scope>
+    <gib.commitRange>${env.TRAVIS_COMMIT_RANGE}</gib.commitRange>
+        <gib.enabled>true</gib.enabled>
+        <gib.useEkstazi>true</gib.useEkstazi>
+        <gib.excludePathRegex>(.*\.apt$)|(.*\.txt$)|(.*\.md$)|(.*\.html$)|(.*\.rst$)|(.*\.scss$)|(.*\.css$)|(.*\.png$)|(.*\.py$)|(.*README$)|(.*\.jpg$)|(.*\.jpeg$)|(.*NOTICE$)|(.*\.gitignore$)</gib.excludePathRegex>
     </properties>
 
     <modules>
@@ -370,12 +370,10 @@
         <module>external/storm-jms</module>
         <module>external/storm-pmml</module>
         <module>external/storm-rocketmq</module>
-        <module>external/storm-blobstore-migration</module>
-        <module>integration-test</module>
 
         <!-- examples -->
         <module>examples/storm-starter</module>
-        <module>examples/storm-loadgen</module>
+	<module>examples/storm-loadgen</module>
         <module>examples/storm-mongodb-examples</module>
         <module>examples/storm-redis-examples</module>
         <module>examples/storm-opentsdb-examples</module>
@@ -516,6 +514,9 @@
                                 <!-- Vagrant related files -->
                                 <exclude>integration-test/config/.vagrant/**</exclude>
 
+                            <exclude>**/NOW</exclude>
+                                <exclude>**/.travis.yml</exclude>
+                                <exclude>**/.ekstazi/**</exclude>
                             </excludes>
                         </configuration>
                     </plugin>
@@ -557,7 +558,7 @@
                             <execution>
                                 <id>attach-sources</id>
                                 <goals>
-                                    <goal>jar-no-fork</goal>
+                                    <goal>jar</goal>
                                 </goals>
                             </execution>
                         </executions>
@@ -573,7 +574,7 @@
                             <execution>
                                 <id>attach-javadocs</id>
                                 <goals>
-                                    <goal>jar-no-fork</goal>
+                                    <goal>jar</goal>
                                 </goals>
                             </execution>
                             <execution>
@@ -604,6 +605,7 @@
             <id>all-tests</id>
             <properties>
                 <java.integration.test.include>**/*.java</java.integration.test.include>
+                <java.integration.test.group>org.apache.storm.testing.IntegrationTest</java.integration.test.group>
                 <clojure.test.set>*.*</clojure.test.set>
             </properties>
         </profile>
@@ -613,6 +615,7 @@
                 <!--Java-->
                 <java.unit.test.include>no.unit.tests</java.unit.test.include>
                 <java.integration.test.include>**/*.java</java.integration.test.include>
+                <java.integration.test.group>org.apache.storm.testing.IntegrationTest</java.integration.test.group>
                 <!--Clojure-->
                 <clojure.test.set>integration.*</clojure.test.set>
                 <clojure.test.declared.namespace.only>true</clojure.test.declared.namespace.only>
@@ -728,7 +731,7 @@
             </dependency>
             <dependency>
                 <groupId>javax.servlet</groupId>
-                <artifactId>javax.servlet-api</artifactId>
+                <artifactId>servlet-api</artifactId>
                 <version>${servlet.version}</version>
             </dependency>
             <dependency>
@@ -742,11 +745,14 @@
                 <version>${joda-time.version}</version>
             </dependency>
             <dependency>
-                <groupId>com.fasterxml.jackson</groupId>
-                <artifactId>jackson-bom</artifactId>
+                <groupId>com.fasterxml.jackson.core</groupId>
+                <artifactId>jackson-core</artifactId>
                 <version>${jackson.version}</version>
-                <scope>import</scope>
-                <type>pom</type>
+            </dependency>
+            <dependency>
+                <groupId>com.fasterxml.jackson.dataformat</groupId>
+                <artifactId>jackson-dataformat-smile</artifactId>
+                <version>${jackson.version}</version>
             </dependency>
             <dependency>
                 <groupId>commons-fileupload</groupId>
@@ -764,6 +770,10 @@
                 <version>${curator.version}</version>
                 <exclusions>
                     <exclusion>
+                        <groupId>log4j</groupId>
+                        <artifactId>log4j</artifactId>
+                    </exclusion>
+                    <exclusion>
                         <groupId>org.jboss.netty</groupId>
                         <artifactId>netty</artifactId>
                     </exclusion>
@@ -773,6 +783,16 @@
                 <groupId>org.apache.curator</groupId>
                 <artifactId>curator-recipes</artifactId>
                 <version>${curator.version}</version>
+                <exclusions>
+                    <exclusion>
+                        <groupId>log4j</groupId>
+                        <artifactId>log4j</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>org.slf4j</groupId>
+                        <artifactId>slf4j-log4j12</artifactId>
+                    </exclusion>
+                </exclusions>
             </dependency>
             <dependency>
                 <groupId>org.apache.curator</groupId>
@@ -782,10 +802,7 @@
             <dependency>
                 <groupId>org.apache.curator</groupId>
                 <artifactId>curator-test</artifactId>
-                <!-- curator-test is not compatible with Zookeeper 3.4.x.
-                Curator works around this by using an older curator-test jar.
-                See https://github.com/apache/curator/tree/6ba4de36d4e8b2b65d45c005a6a92dd85c3c497f/curator-test-zk34-->
-                <version>${curator-test.version}</version>
+                <version>${curator.version}</version>
                 <scope>test</scope>
             </dependency>
             <dependency>
@@ -889,12 +906,12 @@
                 <artifactId>guava</artifactId>
                 <version>${guava.version}</version>
             </dependency>
-            <dependency>
-                <groupId>com.google.auto.service</groupId>
-                <artifactId>auto-service</artifactId>
-                <version>${auto-service.version}</version>
-                <optional>true</optional>
-            </dependency>
+                <dependency>
+                    <groupId>com.google.auto.service</groupId>
+                    <artifactId>auto-service</artifactId>
+                    <version>${auto-service.version}</version>
+                    <optional>true</optional>
+                </dependency>
             <dependency>
                 <groupId>org.apache.logging.log4j</groupId>
                 <artifactId>log4j-api</artifactId>
@@ -978,8 +995,20 @@
             </dependency>
             <dependency>
                 <groupId>org.hamcrest</groupId>
-                <artifactId>java-hamcrest</artifactId>
+                <artifactId>hamcrest-core</artifactId>
                 <version>${hamcrest.version}</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.hamcrest</groupId>
+                <artifactId>hamcrest-library</artifactId>
+                <version>${hamcrest.version}</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.mockito</groupId>
+                <artifactId>mockito-all</artifactId>
+                <version>${mockito.version}</version>
                 <scope>test</scope>
             </dependency>
             <dependency>
@@ -1005,7 +1034,12 @@
                 <groupId>org.apache.calcite</groupId>
                 <artifactId>calcite-core</artifactId>
                 <version>${calcite.version}</version>
-            </dependency> 
+            </dependency>
+            <dependency>
+                <groupId>com.fasterxml.jackson.core</groupId>
+                <artifactId>jackson-databind</artifactId>
+                <version>${jackson.version}</version>
+            </dependency>
 
             <!-- kafka artifact dependency needed for storm-kafka -->
             <dependency>
@@ -1044,16 +1078,6 @@
                 <artifactId>caffeine</artifactId>
                 <version>${caffeine.version}</version>
             </dependency>
-            <dependency>
-                <groupId>javax.xml.bind</groupId>
-                <artifactId>jaxb-api</artifactId>
-                <version>${jaxb-version}</version>
-            </dependency>
-            <dependency>
-                <groupId>org.rocksdb</groupId>
-                <artifactId>rocksdbjni</artifactId>
-                <version>${rocksdb-version}</version>
-            </dependency>
         </dependencies>
     </dependencyManagement>
 
@@ -1086,7 +1110,7 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-surefire-plugin</artifactId>
-                    <version>${surefire.version}</version>
+                    <version>${maven-surefire.version}</version>
                     <configuration>
                         <redirectTestOutputToFile>true</redirectTestOutputToFile>
                         <excludedGroups>${java.unit.test.exclude}</excludedGroups>
@@ -1094,24 +1118,17 @@
                             <include>${java.unit.test.include}</include>
                         </includes>
                         <argLine>-Xmx1536m</argLine>
-                        <trimStackTrace>false</trimStackTrace>
-                        <forkCount>1.0C</forkCount>
-                        <reuseForks>true</reuseForks>
-                        <systemPropertyVariables>
-                            <storm.home>${project.basedir}/target/testhome</storm.home>
-                        </systemPropertyVariables>
                     </configuration>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-failsafe-plugin</artifactId>
-                    <version>${surefire.version}</version>
+                    <version>${maven-surefire.version}</version>
                     <configuration>
-                        <redirectTestOutputToFile>true</redirectTestOutputToFile>
                         <includes>
                             <include>${java.integration.test.include}</include>
                         </includes>
-                        <groups>org.apache.storm.testing.IntegrationTest</groups>
+                        <groups>${java.integration.test.group}</groups>  <!--set in integration-test the profile-->
                         <argLine>-Xmx1536m</argLine>
                     </configuration>
                     <executions>
@@ -1139,7 +1156,7 @@
                             <artifactId>checkstyle</artifactId>
                             <!-- If you change this, you should also update the storm_checkstyle.xml file to be
                             based on the google_checks.xml from the version of checkstyle you are choosing. -->
-                            <version>8.2</version>
+                            <version>7.7</version>
                         </dependency>
                     </dependencies>
                     <executions>
@@ -1182,6 +1199,41 @@
                     </executions>
                 </plugin>
                 <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-assembly-plugin</artifactId>
+                    <version>2.2.2</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-install-plugin</artifactId>
+                    <version>2.4</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-compiler-plugin</artifactId>
+                    <version>3.1</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-source-plugin</artifactId>
+                    <version>2.2.1</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-javadoc-plugin</artifactId>
+                    <version>2.9</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-jar-plugin</artifactId>
+                    <version>2.4</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-release-plugin</artifactId>
+                    <version>2.5</version>
+                </plugin>
+                <plugin>
                     <groupId>com.theoryinpractise</groupId>
                     <artifactId>clojure-maven-plugin</artifactId>
                     <version>1.7.1</version>
@@ -1189,8 +1241,29 @@
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-surefire-report-plugin</artifactId>
+                    <version>2.16</version>
+                </plugin>
+
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-gpg-plugin</artifactId>
+                    <version>1.6</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-shade-plugin</artifactId>
                     <version>2.4.1</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-project-info-reports-plugin</artifactId>
+                    <version>2.7</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-site-plugin</artifactId>
+                    <version>3.3</version>
                 </plugin>
             </plugins>
         </pluginManagement>
@@ -1232,6 +1305,13 @@
                 </configuration>
             </plugin>
         </plugins>
+    <extensions>
+            <extension>
+                <groupId>edu.illinois</groupId>
+                <artifactId>incremental-builder-with-ekstazi</artifactId>
+                <version>3.5.0</version>
+            </extension>
+        </extensions>
     </build>
 
     <reporting>
@@ -1296,3 +1376,4 @@
         </plugins>
     </reporting>
 </project>
+

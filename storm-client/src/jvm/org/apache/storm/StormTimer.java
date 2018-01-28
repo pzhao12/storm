@@ -225,7 +225,7 @@ public class StormTimer implements AutoCloseable {
      */
 
     @Override
-    public void close() throws InterruptedException {
+    public void close() throws Exception {
         if (this.task.isActive()) {
             this.task.setActive(false);
             this.task.interrupt();

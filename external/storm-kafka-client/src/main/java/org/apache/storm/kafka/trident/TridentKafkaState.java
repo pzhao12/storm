@@ -29,6 +29,7 @@ import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.clients.producer.RecordMetadata;
 import org.apache.storm.kafka.trident.mapper.TridentTupleToKafkaMapper;
 import org.apache.storm.kafka.trident.selector.KafkaTopicSelector;
+import org.apache.storm.task.OutputCollector;
 import org.apache.storm.topology.FailedException;
 import org.apache.storm.trident.operation.TridentCollector;
 import org.apache.storm.trident.state.State;
@@ -36,20 +37,21 @@ import org.apache.storm.trident.tuple.TridentTuple;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class TridentKafkaState<K, V> implements State {
+public class TridentKafkaState implements State {
     private static final Logger LOG = LoggerFactory.getLogger(TridentKafkaState.class);
 
-    private KafkaProducer<K, V> producer;
+    private KafkaProducer producer;
+    private OutputCollector collector;
 
-    private TridentTupleToKafkaMapper<K, V> mapper;
+    private TridentTupleToKafkaMapper mapper;
     private KafkaTopicSelector topicSelector;
 
-    public TridentKafkaState<K, V> withTridentTupleToKafkaMapper(TridentTupleToKafkaMapper<K, V> mapper) {
+    public TridentKafkaState withTridentTupleToKafkaMapper(TridentTupleToKafkaMapper mapper) {
         this.mapper = mapper;
         return this;
     }
 
-    public TridentKafkaState<K, V> withKafkaTopicSelector(KafkaTopicSelector selector) {
+    public TridentKafkaState withKafkaTopicSelector(KafkaTopicSelector selector) {
         this.topicSelector = selector;
         return this;
     }
@@ -71,7 +73,7 @@ public class TridentKafkaState<K, V> implements State {
     public void prepare(Properties options) {
         Objects.requireNonNull(mapper, "mapper can not be null");
         Objects.requireNonNull(topicSelector, "topicSelector can not be null");
-        producer = new KafkaProducer<>(options);
+        producer = new KafkaProducer(options);
     }
 
     /**
@@ -87,19 +89,19 @@ public class TridentKafkaState<K, V> implements State {
             List<Future<RecordMetadata>> futures = new ArrayList<>(numberOfRecords);
             for (TridentTuple tuple : tuples) {
                 topic = topicSelector.getTopic(tuple);
-                V messageFromTuple = mapper.getMessageFromTuple(tuple);
-                K keyFromTuple = mapper.getKeyFromTuple(tuple);
+                Object messageFromTuple = mapper.getMessageFromTuple(tuple);
+                Object keyFromTuple = mapper.getKeyFromTuple(tuple);
 
                 if (topic != null) {
                     if (messageFromTuple != null) {
-                        Future<RecordMetadata> result = producer.send(new ProducerRecord<>(topic, keyFromTuple, messageFromTuple));
+                        Future<RecordMetadata> result = producer.send(new ProducerRecord(topic, keyFromTuple, messageFromTuple));
                         futures.add(result);
                     } else {
-                        LOG.warn("skipping Message with Key {} as message was null", keyFromTuple);
+                        LOG.warn("skipping Message with Key " + keyFromTuple + " as message was null");
                     }
 
                 } else {
-                    LOG.warn("skipping key = {}, topic selector returned null.", keyFromTuple);
+                    LOG.warn("skipping key = " + keyFromTuple + ", topic selector returned null.");
                 }
             }
 
@@ -114,12 +116,11 @@ public class TridentKafkaState<K, V> implements State {
             }
 
             if (exceptions.size() > 0) {
-                StringBuilder errorMsg = new StringBuilder("Could not retrieve result for messages ");
-                errorMsg.append(tuples).append(" from topic = ").append(topic)
-                        .append(" because of the following exceptions:").append(System.lineSeparator());
+                StringBuilder errorMsg = new StringBuilder("Could not retrieve result for messages " + tuples + " from topic = " + topic
+                    + " because of the following exceptions:" + System.lineSeparator());
 
                 for (ExecutionException exception : exceptions) {
-                    errorMsg = errorMsg.append(exception.getMessage()).append(System.lineSeparator());
+                    errorMsg = errorMsg.append(exception.getMessage()).append(System.lineSeparator());;
                 }
                 String message = errorMsg.toString();
                 LOG.error(message);

@@ -33,7 +33,6 @@ import java.nio.file.Path;
 import java.nio.file.Files;
 import java.util.HashMap;
 import java.util.Map;
-import org.apache.storm.utils.Time.SimulatedTime;
 
 public class ArtifactoryConfigLoaderTest {
 
@@ -126,7 +125,9 @@ public class ArtifactoryConfigLoaderTest {
         conf.put(DaemonConfig.SCHEDULER_CONFIG_LOADER_URI,  ARTIFACTORY_HTTP_SCHEME_PREFIX + "bogushost.yahoo.com:9999/location/of/test/dir");
         conf.put(Config.STORM_LOCAL_DIR, tmpDirPath.toString());
 
-        try (SimulatedTime t = new SimulatedTime()) {
+        Time.startSimulating();
+
+        try {
             ArtifactoryConfigLoaderMock loaderMock = new ArtifactoryConfigLoaderMock(conf);
 
             loaderMock.setData("Anything", "/location/of/test/dir",
@@ -185,6 +186,8 @@ public class ArtifactoryConfigLoaderTest {
             Assert.assertEquals(2, ret2.get("two"));
             Assert.assertEquals(3, ret2.get("three"));
             Assert.assertEquals(4, ret2.get("four"));
+        } finally {
+            Time.stopSimulating();
         }
     }
 

@@ -17,10 +17,8 @@
  */
 package org.apache.storm.hdfs.bolt;
 
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
-
 import org.apache.storm.Config;
+import org.apache.storm.Constants;
 import org.apache.storm.task.GeneralTopologyContext;
 import org.apache.storm.task.OutputCollector;
 import org.apache.storm.task.TopologyContext;
@@ -41,10 +39,13 @@ import org.junit.*;
 
 import org.junit.rules.ExpectedException;
 import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
+import static org.mockito.Mockito.*;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
 import org.apache.hadoop.fs.FileStatus;
+import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.FileUtil;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hdfs.DistributedFileSystem;
@@ -55,28 +56,14 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.io.IOException;
 import java.util.HashMap;
-import org.apache.storm.hdfs.testing.MiniDFSClusterRule;
-import org.junit.runner.RunWith;
-import org.mockito.runners.MockitoJUnitRunner;
 
-@RunWith(MockitoJUnitRunner.class)
 public class TestSequenceFileBolt {
 
     private static final Logger LOG = LoggerFactory.getLogger(TestSequenceFileBolt.class);
-    
-    @Rule
-    public MiniDFSClusterRule dfsClusterRule = new MiniDFSClusterRule(() -> {
-       Configuration conf = new Configuration();
-        conf.set("fs.trash.interval", "10");
-        conf.setBoolean("dfs.permissions", true);
-        File baseDir = new File("./target/hdfs/").getAbsoluteFile();
-        FileUtil.fullyDelete(baseDir);
-        conf.set(MiniDFSCluster.HDFS_MINIDFS_BASEDIR, baseDir.getAbsolutePath());
-        return conf;
-    });
 
     private String hdfsURI;
     private DistributedFileSystem fs;
+    private MiniDFSCluster hdfsCluster;
     private static final String testRoot = "/unittest";
     Tuple tuple1 = generateTestTuple(1l, "first tuple");
     Tuple tuple2 = generateTestTuple(2l, "second tuple");
@@ -87,13 +74,24 @@ public class TestSequenceFileBolt {
 
     @Before
     public void setup() throws Exception {
-        fs = dfsClusterRule.getDfscluster().getFileSystem();
-        hdfsURI = "hdfs://localhost:" + dfsClusterRule.getDfscluster().getNameNodePort() + "/";
+        MockitoAnnotations.initMocks(this);
+        Configuration conf = new Configuration();
+        conf.set("fs.trash.interval", "10");
+        conf.setBoolean("dfs.permissions", true);
+        File baseDir = new File("./target/hdfs/").getAbsoluteFile();
+        FileUtil.fullyDelete(baseDir);
+        conf.set(MiniDFSCluster.HDFS_MINIDFS_BASEDIR, baseDir.getAbsolutePath());
+
+        MiniDFSCluster.Builder builder = new MiniDFSCluster.Builder(conf);
+        hdfsCluster = builder.build();
+        fs = hdfsCluster.getFileSystem();
+        hdfsURI = "hdfs://localhost:" + hdfsCluster.getNameNodePort() + "/";
     }
 
     @After
     public void shutDown() throws IOException {
         fs.close();
+        hdfsCluster.shutdown();
     }
 
     @Test
@@ -161,7 +159,7 @@ public class TestSequenceFileBolt {
     private Tuple generateTestTuple(Long key, String value) {
         TopologyBuilder builder = new TopologyBuilder();
         GeneralTopologyContext topologyContext = new GeneralTopologyContext(builder.createTopology(),
-                new Config(), new HashMap<>(), new HashMap<>(), new HashMap<>(), "") {
+                new Config(), new HashMap(), new HashMap(), new HashMap(), "") {
             @Override
             public Fields getComponentOutputFields(String componentId, String streamId) {
                 return new Fields("key", "value");

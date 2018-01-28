@@ -43,7 +43,7 @@ public class LogFileDownloader {
     }
 
     /**
-     * Checks authorization for the log file and download.
+     * Checks authorization for the log file and download
      *
      * @param fileName file to download
      * @param user username
@@ -57,7 +57,7 @@ public class LogFileDownloader {
             if (isDaemon || resourceAuthorizer.isUserAllowedToAccessFile(user, fileName)) {
                 return LogviewerResponseBuilder.buildDownloadFile(file);
             } else {
-                return LogviewerResponseBuilder.buildResponseUnauthorizedUser(user);
+                return LogviewerResponseBuilder.buildResponseUnautohrizedUser(user);
             }
         } else {
             return LogviewerResponseBuilder.buildResponsePageNotFound();

@@ -15,7 +15,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.storm.flux.model;
 
 public class PropertyDef {
@@ -35,13 +34,8 @@ public class PropertyDef {
         return value;
     }
 
-    /**
-     * Sets the value of this property. Throws IllegalArgumentException if a reference has
-     * already been set.
-     * @param value property value
-     */
     public void setValue(Object value) {
-        if (this.ref != null) {
+        if(this.ref != null){
             throw new IllegalStateException("A property can only have a value OR a reference, not both.");
         }
         this.value = value;
@@ -51,19 +45,14 @@ public class PropertyDef {
         return ref;
     }
 
-    /**
-     * Sets the value of this property to a reference. Throws IllegalArgumentException if a value has
-     * already been set.
-     * @param ref property reference
-     */
     public void setRef(String ref) {
-        if (this.value != null) {
+        if(this.value != null){
             throw new IllegalStateException("A property can only have a value OR a reference, not both.");
         }
         this.ref = ref;
     }
 
-    public boolean isReference() {
+    public boolean isReference(){
         return this.ref != null;
     }
 }

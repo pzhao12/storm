@@ -18,7 +18,6 @@
 
 package org.apache.storm.scheduler.resource;
 
-import org.apache.storm.scheduler.resource.normalization.NormalizedResources;
 import org.apache.storm.Config;
 import org.apache.storm.DaemonConfig;
 import org.apache.storm.generated.Bolt;
@@ -34,9 +33,9 @@ import org.apache.storm.scheduler.SupervisorDetails;
 import org.apache.storm.scheduler.Topologies;
 import org.apache.storm.scheduler.TopologyDetails;
 import org.apache.storm.scheduler.WorkerSlot;
+import org.apache.storm.scheduler.resource.strategies.eviction.DefaultEvictionStrategy;
 import org.apache.storm.scheduler.resource.strategies.priority.DefaultSchedulingPriorityStrategy;
 import org.apache.storm.scheduler.resource.strategies.scheduling.DefaultResourceAwareStrategy;
-import org.apache.storm.scheduler.resource.strategies.scheduling.GenericResourceAwareStrategy;
 import org.apache.storm.spout.SpoutOutputCollector;
 import org.apache.storm.task.OutputCollector;
 import org.apache.storm.task.TopologyContext;
@@ -55,7 +54,6 @@ import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -68,100 +66,82 @@ import java.util.regex.Pattern;
 
 public class TestUtilsForResourceAwareScheduler {
     private static final Logger LOG = LoggerFactory.getLogger(TestUtilsForResourceAwareScheduler.class);
-
+    public static final int currentTime = 1450418597;
+    
     public static class TestUserResources {
-        private final String name;
-        private final Map<String, Number> resources = new HashMap<>();
-
-        public TestUserResources(String name, double cpu, double mem) {
-            this.name = name;
-            resources.put("cpu", cpu);
-            resources.put("memory", mem);
+      private final String name;
+      private final Map<String, Number> resources = new HashMap<>();
+      
+      public TestUserResources(String name, double cpu, double mem) {
+        this.name = name;
+        resources.put("cpu", cpu);
+        resources.put("memory", mem);
+      }
+      
+      public void addSelfTo(Map<String, Map<String, Number>> fullPool) {
+        if (fullPool.put(name, resources) != null) {
+          throw new IllegalStateException("Cannot have 2 copies of " + name + " in a pool");
         }
-
-        public void addSelfTo(Map<String, Map<String, Number>> fullPool) {
-            if (fullPool.put(name, resources) != null) {
-                throw new IllegalStateException("Cannot have 2 copies of " + name + " in a pool");
-            }
-        }
+      }
     }
-
+    
     public static TestUserResources userRes(String name, double cpu, double mem) {
-        return new TestUserResources(name, cpu, mem);
+      return new TestUserResources(name, cpu, mem);
     }
-
+    
     public static Map<String, Double> toDouble(Map<String, Number> resources) {
-        Map<String, Double> ret = new HashMap<>();
-        for (Entry<String, Number> entry: resources.entrySet()) {
-            ret.put(entry.getKey(), entry.getValue().doubleValue());
-        }
-        return ret;
+      Map<String, Double> ret = new HashMap<>();
+      for (Entry<String, Number> entry: resources.entrySet()) {
+        ret.put(entry.getKey(), entry.getValue().doubleValue());
+      }
+      return ret;
     }
-
+    
     public static Map<String, Map<String, Number>> userResourcePool(TestUserResources... resources) {
-        Map<String, Map<String, Number>> ret = new HashMap<>();
-        for (TestUserResources res: resources) {
-            res.addSelfTo(ret);
-        }
-        return ret;
+      Map<String, Map<String, Number>> ret = new HashMap<>();
+      for (TestUserResources res: resources) {
+        res.addSelfTo(ret);
+      }
+      return ret;
     }
-
-    public static Config createGrasClusterConfig(double compPcore, double compOnHeap, double compOffHeap,
-                                             Map<String, Map<String, Number>> pools, Map<String, Double> genericResourceMap) {
-        Config config = createClusterConfig(compPcore, compOnHeap, compOffHeap, pools);
-        config.put(Config.TOPOLOGY_COMPONENT_RESOURCES_MAP, genericResourceMap);
-        config.put(Config.TOPOLOGY_SCHEDULER_STRATEGY, GenericResourceAwareStrategy.class.getName());
-        return config;
-    }
-
+    
     public static Config createClusterConfig(double compPcore, double compOnHeap, double compOffHeap, Map<String, Map<String, Number>> pools) {
-        Config config = new Config();
-        config.putAll(Utils.readDefaultConfig());
-        config.put(DaemonConfig.RESOURCE_AWARE_SCHEDULER_PRIORITY_STRATEGY, DefaultSchedulingPriorityStrategy.class.getName());
-        config.put(Config.TOPOLOGY_SCHEDULER_STRATEGY, DefaultResourceAwareStrategy.class.getName());
-        config.put(Config.TOPOLOGY_COMPONENT_CPU_PCORE_PERCENT, compPcore);
-        config.put(Config.TOPOLOGY_COMPONENT_RESOURCES_OFFHEAP_MEMORY_MB, compOffHeap);
-        config.put(Config.TOPOLOGY_COMPONENT_RESOURCES_ONHEAP_MEMORY_MB, compOnHeap);
-        if (pools != null) {
-            config.put(DaemonConfig.RESOURCE_AWARE_SCHEDULER_USER_POOLS, pools);
-        }
-        return config;
+      Config config = new Config();
+      config.putAll(Utils.readDefaultConfig());
+      config.put(DaemonConfig.RESOURCE_AWARE_SCHEDULER_EVICTION_STRATEGY, DefaultEvictionStrategy.class.getName());
+      config.put(DaemonConfig.RESOURCE_AWARE_SCHEDULER_PRIORITY_STRATEGY, DefaultSchedulingPriorityStrategy.class.getName());
+      config.put(Config.TOPOLOGY_SCHEDULER_STRATEGY, DefaultResourceAwareStrategy.class.getName());
+      config.put(Config.TOPOLOGY_COMPONENT_CPU_PCORE_PERCENT, compPcore);
+      config.put(Config.TOPOLOGY_COMPONENT_RESOURCES_OFFHEAP_MEMORY_MB, compOffHeap);
+      config.put(Config.TOPOLOGY_COMPONENT_RESOURCES_ONHEAP_MEMORY_MB, compOnHeap);
+      if (pools != null) {
+        config.put(DaemonConfig.RESOURCE_AWARE_SCHEDULER_USER_POOLS, pools);
+      }
+      return config;
     }
 
     public static Map<String, SupervisorDetails> genSupervisors(int numSup, int numPorts, double cpu, double mem) {
-        return genSupervisors(numSup, numPorts, 0, cpu, mem);
+      return genSupervisors(numSup, numPorts, 0, cpu, mem);
     }
-
-    public static Map<String, SupervisorDetails> genSupervisors(int numSup, int numPorts,
-                                                                double cpu, double mem, Map<String, Double> miscResources) {
-        return genSupervisors(numSup, numPorts, 0, cpu, mem, miscResources);
-    }
-
-    public static Map<String, SupervisorDetails> genSupervisors(int numSup, int numPorts, int start,
-                                                                double cpu, double mem) {
-        return genSupervisors(numSup, numPorts, start, cpu, mem, Collections.emptyMap());
-    }
-
-    public static Map<String, SupervisorDetails> genSupervisors(int numSup, int numPorts, int start,
-                                                                double cpu, double mem, Map<String, Double> miscResources) {
+    
+    public static Map<String, SupervisorDetails> genSupervisors(int numSup, int numPorts, int start, double cpu, double mem) {
       Map<String, Double> resourceMap = new HashMap<>();
       resourceMap.put(Config.SUPERVISOR_CPU_CAPACITY, cpu);
       resourceMap.put(Config.SUPERVISOR_MEMORY_CAPACITY_MB, mem);
-      resourceMap.putAll(miscResources);
         Map<String, SupervisorDetails> retList = new HashMap<String, SupervisorDetails>();
         for (int i = start; i < numSup + start; i++) {
-            List<Number> ports = new LinkedList<>();
+            List<Number> ports = new LinkedList<Number>();
             for (int j = 0; j < numPorts; j++) {
                 ports.add(j);
             }
-            SupervisorDetails sup = new SupervisorDetails("sup-" + i, "host-" + i, null, ports, NormalizedResources.RESOURCE_NAME_NORMALIZER.normalizedResourceMap(resourceMap));
+            SupervisorDetails sup = new SupervisorDetails("sup-" + i, "host-" + i, null, ports, resourceMap);
             retList.put(sup.getId(), sup);
         }
         return retList;
     }
 
     public static Map<ExecutorDetails, String> genExecsAndComps(StormTopology topology) {
-        Map<ExecutorDetails, String> retMap = new HashMap<>();
+        Map<ExecutorDetails, String> retMap = new HashMap<ExecutorDetails, String>();
         int startTask = 0;
         int endTask = 0;
         for (Map.Entry<String, SpoutSpec> entry : topology.get_spouts().entrySet()) {
@@ -189,16 +169,16 @@ public class TestUtilsForResourceAwareScheduler {
     }
 
     public static Topologies addTopologies(Topologies topos, TopologyDetails ... details) {
-        Map<String, TopologyDetails> topoMap = new HashMap<>();
-        for (TopologyDetails td: topos.getTopologies()) {
-            topoMap.put(td.getId(), td);
+      Map<String, TopologyDetails> topoMap = new HashMap<>();
+      for (TopologyDetails td: topos.getTopologies()) {
+        topoMap.put(td.getId(), td);
+      }
+      for (TopologyDetails td: details) {
+        if (topoMap.put(td.getId(), td) != null) {
+          throw new IllegalArgumentException("Cannot have multiple topologies with id " + td.getId());
         }
-        for (TopologyDetails td: details) {
-            if (topoMap.put(td.getId(), td) != null) {
-                throw new IllegalArgumentException("Cannot have multiple topologies with id " + td.getId());
-            }
-        }
-        return new Topologies(topoMap);
+      }
+      return new Topologies(topoMap);
     }
 
     public static TopologyDetails genTopology(String name, Map<String, Object> config, int numSpout, int numBolt,
@@ -213,21 +193,21 @@ public class TestUtilsForResourceAwareScheduler {
         conf.put(Config.TOPOLOGY_WORKER_MAX_HEAP_SIZE_MB, Double.MAX_VALUE);
         StormTopology topology = buildTopology(numSpout, numBolt, spoutParallelism, boltParallelism);
         TopologyDetails topo = new TopologyDetails(name + "-" + launchTime, conf, topology,
-            0,
-            genExecsAndComps(topology), launchTime, user);
+                0,
+                genExecsAndComps(topology), launchTime, user);
         return topo;
     }
 
     public static StormTopology buildTopology(int numSpout, int numBolt,
                                               int spoutParallelism, int boltParallelism) {
         LOG.debug("buildTopology with -> numSpout: " + numSpout + " spoutParallelism: "
-            + spoutParallelism + " numBolt: "
-            + numBolt + " boltParallelism: " + boltParallelism);
+                + spoutParallelism + " numBolt: "
+                + numBolt + " boltParallelism: " + boltParallelism);
         TopologyBuilder builder = new TopologyBuilder();
 
         for (int i = 0; i < numSpout; i++) {
             SpoutDeclarer s1 = builder.setSpout("spout-" + i, new TestSpout(),
-                spoutParallelism);
+                    spoutParallelism);
         }
         int j = 0;
         for (int i = 0; i < numBolt; i++) {
@@ -235,7 +215,7 @@ public class TestUtilsForResourceAwareScheduler {
                 j = 0;
             }
             BoltDeclarer b1 = builder.setBolt("bolt-" + i, new TestBolt(),
-                boltParallelism).shuffleGrouping("spout-" + j);
+                    boltParallelism).shuffleGrouping("spout-" + j);
             j++;
         }
 
@@ -282,7 +262,7 @@ public class TestUtilsForResourceAwareScheduler {
         @Override
         public Map<String, Object> getComponentConfiguration() {
             if (!_isDistributed) {
-                Map<String, Object> ret = new HashMap<>();
+                Map<String, Object> ret = new HashMap<String, Object>();
                 ret.put(Config.TOPOLOGY_MAX_TASK_PARALLELISM, 1);
                 return ret;
             } else {
@@ -318,8 +298,7 @@ public class TestUtilsForResourceAwareScheduler {
         }
 
         @Override
-        public Collection<WorkerSlot> allSlotsAvailableForScheduling(Collection<SupervisorDetails> existingSupervisors,
-                                                                     Topologies topologies, Set<String> topologiesMissingAssignments) {
+        public Collection<WorkerSlot> allSlotsAvailableForScheduling(Collection<SupervisorDetails> existingSupervisors, Topologies topologies, Set<String> topologiesMissingAssignments) {
             return null;
         }
 
@@ -350,38 +329,47 @@ public class TestUtilsForResourceAwareScheduler {
     }
 
     public static void assertTopologiesNotScheduled(Cluster cluster, String ... topoNames) {
-        Topologies topologies = cluster.getTopologies();
-        for (String topoName: topoNames) {
-            TopologyDetails td = topologies.getByName(topoName);
-            assert(td != null) : topoName;
-            String topoId = td.getId();
-            String status = cluster.getStatus(topoId);
-            assert(status != null) : topoName;
-            assert(!isStatusSuccess(status)) : topoName;
-            assert(cluster.getAssignmentById(topoId) == null) : topoName;
-            assert(cluster.needsSchedulingRas(td)) : topoName;
-        }
+      Topologies topologies = cluster.getTopologies();
+      for (String topoName: topoNames) {
+        TopologyDetails td = topologies.getByName(topoName);
+        assert(td != null) : topoName;
+        String topoId = td.getId();
+        String status = cluster.getStatus(topoId);
+        assert(status != null) : topoName;
+        assert(!isStatusSuccess(status)) : topoName;
+        assert(cluster.getAssignmentById(topoId) == null) : topoName;
+        assert(cluster.needsSchedulingRas(td)) : topoName;
+      }
     }
 
     public static void assertTopologiesFullyScheduled(Cluster cluster, String ... topoNames) {
-        Topologies topologies = cluster.getTopologies();
-        for (String topoName: topoNames) {
-            TopologyDetails td = topologies.getByName(topoName);
-            assert(td != null) : topoName;
-            String topoId = td.getId();
-            assertStatusSuccess(cluster, topoId);
-            assert(cluster.getAssignmentById(topoId) != null) : topoName;
-            assert(cluster.needsSchedulingRas(td) == false) : topoName;
-        }
+      Topologies topologies = cluster.getTopologies();
+      for (String topoName: topoNames) {
+        TopologyDetails td = topologies.getByName(topoName);
+        assert(td != null) : topoName;
+        String topoId = td.getId();
+        assertStatusSuccess(cluster, topoId);
+        assert(cluster.getAssignmentById(topoId) != null) : topoName;
+        assert(cluster.needsSchedulingRas(td) == false) : topoName;
+      }
     }
-
+    
     public static void assertStatusSuccess(Cluster cluster, String topoId) {
-        assert(isStatusSuccess(cluster.getStatus(topoId))) :
-            "topology status " + topoId + " is not successful " + cluster.getStatus(topoId);
+      assert(isStatusSuccess(cluster.getStatus(topoId))) : "topology status " + topoId;
     }
-
+      
     public static boolean isStatusSuccess(String status) {
         return isContain(status, "fully") && isContain(status, "scheduled") && !isContain(status, "unsuccessful");
+    }
+
+    public static TopologyDetails findTopologyInSetFromName(String topoName, Set<TopologyDetails> set) {
+        TopologyDetails ret = null;
+        for (TopologyDetails entry : set) {
+            if (entry.getName().equals(topoName)) {
+                ret = entry;
+            }
+        }
+        return ret;
     }
 
     public static Map<SupervisorDetails, Double> getSupervisorToMemoryUsage(ISchedulingState cluster, Topologies topologies) {

@@ -18,25 +18,24 @@
 
 package org.apache.storm.utils;
 
-import java.io.File;
-import java.io.IOException;
-import java.net.URLEncoder;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
-import java.util.concurrent.Callable;
-import java.util.stream.Collectors;
-
 import org.apache.commons.io.FileUtils;
 import org.apache.storm.Config;
 import org.apache.storm.daemon.supervisor.AdvancedFSOps;
 import org.apache.storm.generated.StormTopology;
 import org.apache.storm.validation.ConfigValidation;
 
+import java.io.File;
+import java.io.IOException;
+import java.net.URLEncoder;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.HashSet;
+import java.util.concurrent.Callable;
+import java.util.stream.Collectors;
 
 public class ConfigUtils {
     public static final String FILE_SEPARATOR = File.separator;
@@ -80,7 +79,7 @@ public class ConfigUtils {
      */
     public static Collection<String> readDirContents(String dir) {
         Collection<File> ret = readDirFiles(dir);
-        return ret.stream().map(car -> car.getName()).collect(Collectors.toList());
+        return ret.stream().map( car -> car.getName() ).collect( Collectors.toList() );
     }
 
     /**
@@ -217,6 +216,7 @@ public class ConfigUtils {
     }
 
     public static String absoluteStormBlobStoreDir(Map<String, Object> conf) {
+        String stormHome = System.getProperty("storm.home");
         String blobStoreDir = (String) conf.get(Config.BLOBSTORE_DIR);
         if (blobStoreDir == null) {
             return ConfigUtils.absoluteStormLocalDir(conf);
@@ -224,7 +224,6 @@ public class ConfigUtils {
             if (new File(blobStoreDir).isAbsolute()) {
                 return blobStoreDir;
             } else {
-                String stormHome = System.getProperty("storm.home");
                 return (stormHome + FILE_SEPARATOR + blobStoreDir);
             }
         }
@@ -273,7 +272,7 @@ public class ConfigUtils {
     public static Map overrideLoginConfigWithSystemProperty(Map<String, Object> conf) { // note that we delete the return value
         String loginConfFile = System.getProperty("java.security.auth.login.config");
         if (loginConfFile != null) {
-            conf.put("java.security.auth.login.config", loginConfFile);
+             conf.put("java.security.auth.login.config", loginConfFile);
         }
         return conf;
     }
@@ -434,4 +433,5 @@ public class ConfigUtils {
         FileUtils.forceMkdir(new File(ret));
         return ret;
     }
+
 }

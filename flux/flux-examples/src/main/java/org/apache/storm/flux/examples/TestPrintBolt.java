@@ -15,7 +15,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.storm.flux.examples;
 
 import org.apache.storm.topology.BasicOutputCollector;
@@ -24,7 +23,7 @@ import org.apache.storm.topology.base.BaseBasicBolt;
 import org.apache.storm.tuple.Tuple;
 
 /**
- * Prints the tuples to stdout.
+ * Prints the tuples to stdout
  */
 public class TestPrintBolt extends BaseBasicBolt {
 

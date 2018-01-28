@@ -501,26 +501,6 @@ public class ConfigValidation {
         }
     }
 
-    public static class EventLoggerRegistryValidator extends Validator {
-
-        @Override
-        public void validateField(String name, Object o) {
-            if(o == null) {
-                return;
-            }
-            SimpleTypeValidator.validateField(name, Map.class, o);
-            if(!((Map<?, ?>) o).containsKey("class") ) {
-                throw new IllegalArgumentException( "Field " + name + " must have map entry with key: class");
-            }
-
-            SimpleTypeValidator.validateField(name, String.class, ((Map<?, ?>) o).get("class"));
-
-            if(((Map<?, ?>) o).containsKey("arguments") ) {
-                SimpleTypeValidator.validateField(name, Map.class, ((Map<?, ?>) o).get("arguments"));
-            }
-        }
-    }
-
     public static class MapOfStringToMapOfStringToObjectValidator extends Validator {
       @Override
       public  void validateField(String name, Object o) {
@@ -582,60 +562,19 @@ public class ConfigValidation {
                 return;
             }
             SimpleTypeValidator.validateField(name, String.class, o);
-            String className = (String) o;
             try {
-                Class<?> objectClass = Class.forName(className);
+                Class<?> objectClass = Class.forName((String) o);
                 if (!this.classImplements.isAssignableFrom(objectClass)) {
                     throw new IllegalArgumentException("Field " + name + " with value " + o
                             + " does not implement " + this.classImplements.getName());
                 }
             } catch (ClassNotFoundException e) {
-                //To support topologies of older version to run, we might have to loose the constraints so that
-                //the configs of older version can pass the validation.
-                if (className.startsWith("backtype.storm")) {
-                    LOG.error("ClassNotFoundException: {}", className);
-                    LOG.warn("Replace backtype.storm with org.apache.storm and try to validate again");
-                    LOG.warn("We loosen some constraints here to support topologies of older version running on the current version");
-                    validateField(name, className.replace("backtype.storm", "org.apache.storm"));
-                } else {
-                    throw new RuntimeException(e);
-                }
+                throw new RuntimeException(e);
             }
         }
     }
 
     /**
-     * Validates a list of a list of Strings.
-     */
-    public static class ListOfListOfStringValidator extends Validator {
-
-        @Override
-        public void validateField(String name, Object o) throws IllegalArgumentException {
-            if (o == null) {
-                return;
-            }
-            if (o instanceof List) {
-                for (Object entry1 : (List) o) {
-                    if (entry1 instanceof List) {
-                        for (Object entry2 : (List) entry1) {
-                            if (!(entry2 instanceof String)) {
-                                throw new IllegalArgumentException(
-                                    "Field " + name + " must be an Iterable containing only List of List of Strings");
-                            }
-                        }
-                    } else {
-                        throw new IllegalArgumentException(
-                            "Field " + name + " must be an Iterable containing only List of List of Strings");
-                    }
-                }
-            } else {
-                throw new IllegalArgumentException(
-                    "Field " + name + " must be an Iterable containing only List of List of Strings");
-            }
-        }
-    }
-
-    /*
      * Methods for validating confs
      */
 

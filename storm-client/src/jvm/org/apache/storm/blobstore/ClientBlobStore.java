@@ -15,7 +15,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.storm.blobstore;
 
 import org.apache.storm.daemon.Shutdownable;
@@ -46,8 +45,11 @@ import java.util.Map;
  *
  * For more detailed implementation
  * @see org.apache.storm.blobstore.NimbusBlobStore
+ * @see org.apache.storm.blobstore.LocalFsBlobStore
+ * @see org.apache.storm.hdfs.blobstore.HdfsClientBlobStore
+ * @see org.apache.storm.hdfs.blobstore.HdfsBlobStore
  */
-public abstract class ClientBlobStore implements Shutdownable, AutoCloseable {
+public abstract class ClientBlobStore implements Shutdownable {
     protected Map<String, Object> conf;
 
     public interface WithBlobstore {
@@ -56,8 +58,12 @@ public abstract class ClientBlobStore implements Shutdownable, AutoCloseable {
 
     public static void withConfiguredClient(WithBlobstore withBlobstore) throws Exception {
         Map<String, Object> conf = ConfigUtils.readStormConfig();
-        try (ClientBlobStore blobStore = Utils.getClientBlobStore(conf)) {
+        ClientBlobStore blobStore = Utils.getClientBlobStore(conf);
+
+        try {
             withBlobstore.run(blobStore);
+        } finally {
+            blobStore.shutdown();
         }
     }
 
@@ -161,8 +167,6 @@ public abstract class ClientBlobStore implements Shutdownable, AutoCloseable {
      * @param key
      */
     public abstract void createStateInZookeeper(String key);
-
-    public abstract void close();
 
     /**
      * Client facing API to create a blob.

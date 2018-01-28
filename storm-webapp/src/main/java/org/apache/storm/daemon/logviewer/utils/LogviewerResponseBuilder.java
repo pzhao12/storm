@@ -20,7 +20,6 @@ package org.apache.storm.daemon.logviewer.utils;
 
 import static j2html.TagCreator.body;
 import static j2html.TagCreator.h2;
-import static javax.ws.rs.core.Response.Status.FORBIDDEN;
 import static javax.ws.rs.core.Response.Status.OK;
 import static org.apache.commons.lang.StringEscapeUtils.escapeHtml;
 
@@ -90,9 +89,9 @@ public class LogviewerResponseBuilder {
      *
      * @param user username
      */
-    public static Response buildResponseUnauthorizedUser(String user) {
+    public static Response buildResponseUnautohrizedUser(String user) {
         String entity = buildUnauthorizedUserHtml(user);
-        return Response.status(FORBIDDEN)
+        return Response.status(OK)
                 .entity(entity)
                 .type(MediaType.TEXT_HTML_TYPE)
                 .build();
@@ -116,7 +115,7 @@ public class LogviewerResponseBuilder {
      */
     public static Response buildUnauthorizedUserJsonResponse(String user, String callback) {
         return new JsonResponseBuilder().setData(UIHelpers.unauthorizedUserJson(user))
-                .setCallback(callback).setStatus(403).build();
+                .setCallback(callback).setStatus(401).build();
     }
 
     /**
@@ -126,9 +125,8 @@ public class LogviewerResponseBuilder {
      * @param callback callback for JSONP
      */
     public static Response buildExceptionJsonResponse(Exception ex, String callback) {
-        int statusCode = 500;
-        return new JsonResponseBuilder().setData(UIHelpers.exceptionToJson(ex, statusCode))
-                .setCallback(callback).setStatus(statusCode).build();
+        return new JsonResponseBuilder().setData(UIHelpers.exceptionToJson(ex))
+                .setCallback(callback).setStatus(500).build();
     }
 
     private static Map<String, Object> getHeadersForSuccessResponse(String origin) {

@@ -15,11 +15,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.storm.flux.model;
 
 /**
- * Abstract parent class of component definitions.
+ * Abstract parent class of component definitions
  * (spouts/bolts)
  */
 public abstract class VertexDef extends BeanDef {

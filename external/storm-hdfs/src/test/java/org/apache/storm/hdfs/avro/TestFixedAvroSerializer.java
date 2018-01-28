@@ -21,7 +21,8 @@ import org.apache.avro.Schema;
 import org.junit.Assert;
 import org.junit.Test;
 
-import org.junit.BeforeClass;
+import java.util.ArrayList;
+import java.util.List;
 
 public class TestFixedAvroSerializer {
     //These should match FixedAvroSerializer.config in the test resources
@@ -33,13 +34,12 @@ public class TestFixedAvroSerializer {
             "\"name\":\"stormtest2\"," +
             "\"fields\":[{\"name\":\"foobar1\",\"type\":\"string\"}," +
             "{ \"name\":\"intint1\", \"type\":\"int\" }]}";
-    private static Schema schema1;
-    private static Schema schema2;
+    private static final Schema schema1;
+    private static final Schema schema2;
 
     final AvroSchemaRegistry reg;
 
-    @BeforeClass
-    public static void setupClass() {
+    static {
 
         Schema.Parser parser = new Schema.Parser();
         schema1 = parser.parse(schemaString1);
@@ -58,8 +58,7 @@ public class TestFixedAvroSerializer {
         testTheSchema(schema2);
     }
 
-    @Test 
-    public void testDifferentFPs() {
+    @Test public void testDifferentFPs() {
         String fp1 = reg.getFingerprint(schema1);
         String fp2 = reg.getFingerprint(schema2);
 

@@ -19,33 +19,28 @@ package org.apache.storm.ui;
 
 import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableMap;
-import java.io.PrintWriter;
-import java.io.StringWriter;
-import java.net.URLEncoder;
-import java.util.EnumSet;
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import javax.servlet.DispatcherType;
-import javax.servlet.Servlet;
+
 import org.apache.storm.generated.ExecutorInfo;
 import org.apache.storm.logging.filters.AccessLoggingFilter;
 import org.apache.storm.utils.ObjectReader;
-import org.eclipse.jetty.http.HttpStatus;
-import org.eclipse.jetty.http.HttpVersion;
-import org.eclipse.jetty.server.HttpConfiguration;
-import org.eclipse.jetty.server.HttpConnectionFactory;
-import org.eclipse.jetty.server.SecureRequestCustomizer;
+import org.eclipse.jetty.server.Connector;
+import org.eclipse.jetty.server.DispatcherType;
 import org.eclipse.jetty.server.Server;
-import org.eclipse.jetty.server.ServerConnector;
-import org.eclipse.jetty.server.SslConnectionFactory;
+import org.eclipse.jetty.server.nio.SelectChannelConnector;
+import org.eclipse.jetty.server.ssl.SslSocketConnector;
 import org.eclipse.jetty.servlet.FilterHolder;
+import org.eclipse.jetty.servlet.FilterMapping;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
 import org.eclipse.jetty.servlets.CrossOriginFilter;
 import org.eclipse.jetty.util.ssl.SslContextFactory;
 import org.json.simple.JSONValue;
+
+import javax.servlet.Servlet;
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.net.URLEncoder;
+import java.util.*;
 
 public class UIHelpers {
 
@@ -115,20 +110,20 @@ public class UIHelpers {
                 "errorMessage", String.format("User %s is not authorized.", user));
     }
 
-    private static ServerConnector mkSslConnector(Server server, Integer port, String ksPath, String ksPassword, String ksType,
+    private static SslSocketConnector mkSslConnector(Integer port, String ksPath, String ksPassword, String ksType,
                                                      String keyPassword, String tsPath, String tsPassword, String tsType,
-                                                     Boolean needClientAuth, Boolean wantClientAuth, Integer headerBufferSize) {
+                                                     Boolean needClientAuth, Boolean wantClientAuth) {
         SslContextFactory factory = new SslContextFactory();
         factory.setExcludeCipherSuites("SSL_RSA_WITH_RC4_128_MD5", "SSL_RSA_WITH_RC4_128_SHA");
         factory.setExcludeProtocols("SSLv3");
-        factory.setRenegotiationAllowed(false);
+        factory.setAllowRenegotiate(false);
         factory.setKeyStorePath(ksPath);
         factory.setKeyStoreType(ksType);
         factory.setKeyStorePassword(ksPassword);
         factory.setKeyManagerPassword(keyPassword);
 
         if (tsPath != null && tsPassword != null && tsType != null) {
-            factory.setTrustStorePath(tsPath);
+            factory.setTrustStore(tsPath);
             factory.setTrustStoreType(tsType);
             factory.setTrustStorePassword(tsPassword);
         }
@@ -139,31 +134,16 @@ public class UIHelpers {
             factory.setWantClientAuth(true);
         }
 
-        HttpConfiguration httpsConfig = new HttpConfiguration();
-        httpsConfig.addCustomizer(new SecureRequestCustomizer());
-        if (null != headerBufferSize) {
-            httpsConfig.setRequestHeaderSize(headerBufferSize);
-        }
-        ServerConnector sslConnector = new ServerConnector(server,
-                new SslConnectionFactory(factory, HttpVersion.HTTP_1_1.asString()),
-                new HttpConnectionFactory(httpsConfig));
+        SslSocketConnector sslConnector = new SslSocketConnector(factory);
         sslConnector.setPort(port);
         return sslConnector;
     }
 
     public static void configSsl(Server server, Integer port, String ksPath, String ksPassword, String ksType,
-                                 String keyPassword, String tsPath, String tsPassword, String tsType,
-                                 Boolean needClientAuth, Boolean wantClientAuth) {
-        configSsl(server, port, ksPath, ksPassword, ksType, keyPassword,
-                tsPath, tsPassword, tsType, needClientAuth, wantClientAuth, null);
-    }
-
-    public static void configSsl(Server server, Integer port, String ksPath, String ksPassword, String ksType,
-                                 String keyPassword, String tsPath, String tsPassword, String tsType,
-                                 Boolean needClientAuth, Boolean wantClientAuth, Integer headerBufferSize) {
+                                 String keyPassword, String tsPath, String tsPassword, String tsType, Boolean needClientAuth, Boolean wantClientAuth) {
         if (port > 0) {
-            server.addConnector(mkSslConnector(server, port, ksPath, ksPassword, ksType, keyPassword,
-                    tsPath, tsPassword, tsType, needClientAuth, wantClientAuth, headerBufferSize));
+            server.addConnector(mkSslConnector(port, ksPath, ksPassword, ksType, keyPassword,
+                    tsPath, tsPassword, tsType, needClientAuth, wantClientAuth));
         }
     }
 
@@ -217,38 +197,37 @@ public class UIHelpers {
                 } else {
                     filterHolder.setInitParameters(new HashMap<String, String>());
                 }
-                context.addFilter(filterHolder, "/*", EnumSet.allOf(DispatcherType.class));
+                context.addFilter(filterHolder, "/*", FilterMapping.ALL);
             }
         }
         context.addFilter(mkAccessLoggingFilterHandle(), "/*", EnumSet.allOf(DispatcherType.class));
+    }
+    
+    private static Server removeNonSslConnector(Server server) {
+        for (Connector c : server.getConnectors()) {
+            if (c != null && !(c instanceof SslSocketConnector)) {
+                server.removeConnector(c);
+            }
+        }
+        return server;
     }
 
     /**
      * Construct a Jetty Server instance.
      */
     public static Server jettyCreateServer(Integer port, String host, Integer httpsPort) {
-        return jettyCreateServer(port, host, httpsPort, null);
-    }
+        SelectChannelConnector connector = new SelectChannelConnector();
+        connector.setPort(ObjectReader.getInt(port, 80));
+        connector.setHost(host);
+        connector.setMaxIdleTime(200000);
 
-    /**
-     * Construct a Jetty Server instance.
-     */
-    public static Server jettyCreateServer(Integer port, String host, Integer httpsPort, Integer headerBufferSize) {
         Server server = new Server();
+        server.addConnector(connector);
+        server.setSendDateHeader(true);
 
-        if (httpsPort == null || httpsPort <= 0) {
-            HttpConfiguration httpConfig = new HttpConfiguration();
-            httpConfig.setSendDateHeader(true);
-            if (null != headerBufferSize) {
-                httpConfig.setRequestHeaderSize(headerBufferSize);
-            }
-            ServerConnector httpConnector = new ServerConnector(server, new HttpConnectionFactory(httpConfig));
-            httpConnector.setPort(ObjectReader.getInt(port, 80));
-            httpConnector.setIdleTimeout(200000);
-            httpConnector.setHost(host);
-            server.addConnector(httpConnector);
+        if (httpsPort != null && httpsPort > 0) {
+            removeNonSslConnector(server);
         }
-
         return server;
     }
 
@@ -256,16 +235,16 @@ public class UIHelpers {
      * Modified version of run-jetty
      * Assumes configurator sets handler.
      */
-    public static void stormRunJetty(Integer port, String host, Integer httpsPort, Integer headerBufferSize, IConfigurator configurator) throws Exception {
-        Server s = jettyCreateServer(port, host, httpsPort, headerBufferSize);
+    public static void stormRunJetty(Integer port, String host, Integer httpsPort, IConfigurator configurator) throws Exception {
+        Server s = jettyCreateServer(port, host, httpsPort);
         if (configurator != null) {
             configurator.execute(s);
         }
         s.start();
     }
 
-    public static void stormRunJetty(Integer port, Integer headerBufferSize, IConfigurator configurator) throws Exception {
-        stormRunJetty(port, null, null, headerBufferSize, configurator);
+    public static void stormRunJetty(Integer port, IConfigurator configurator) throws Exception {
+        stormRunJetty(port, null, null, configurator);
     }
 
     public static String wrapJsonInCallback(String callback, String response) {
@@ -293,9 +272,9 @@ public class UIHelpers {
         return callback != null ? wrapJsonInCallback(callback, serializedData) : serializedData;
     }
 
-    public static Map exceptionToJson(Exception ex, int statusCode) {
+    public static Map exceptionToJson(Exception ex) {
         StringWriter sw = new StringWriter();
         ex.printStackTrace(new PrintWriter(sw));
-        return ImmutableMap.of("error", statusCode + " " + HttpStatus.getMessage(statusCode), "errorMessage", sw.toString());
+        return ImmutableMap.of("error", "Internal Server Error", "errorMessage", sw.toString());
     }
 }

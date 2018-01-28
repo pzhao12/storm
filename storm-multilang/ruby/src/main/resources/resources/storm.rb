@@ -205,10 +205,6 @@ module Storm
 
     def open(conf, context); end
 
-    def activate; end
-
-    def deactivate; end
-
     def nextTuple; end
 
     def ack(id); end
@@ -223,10 +219,6 @@ module Storm
         while true
           msg = read_command
           case msg['command']
-            when 'activate'
-              activate
-            when 'deactivate'
-              deactivate
             when 'next'
               nextTuple
             when 'ack'

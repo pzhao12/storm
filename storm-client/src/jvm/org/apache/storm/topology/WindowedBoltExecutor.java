@@ -327,9 +327,7 @@ public class WindowedBoltExecutor implements IRichBolt {
 
     @Override
     public void cleanup() {
-        if (waterMarkEventGenerator != null) {
-            waterMarkEventGenerator.shutdown();
-        }
+        waterMarkEventGenerator.shutdown();
         windowManager.shutdown();
         bolt.cleanup();
     }

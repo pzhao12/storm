@@ -88,7 +88,6 @@ public class ResourceAuthorizer {
 
             List<String> logsGroups = new ArrayList<>();
             logsGroups.addAll(ObjectReader.getStrings(stormConf.get(DaemonConfig.LOGS_GROUPS)));
-            logsGroups.addAll(ObjectReader.getStrings(stormConf.get(Config.NIMBUS_ADMINS_GROUPS)));
             logsGroups.addAll(whitelist.getGroupWhitelist());
 
             String userName = principalToLocal.toLocal(user);

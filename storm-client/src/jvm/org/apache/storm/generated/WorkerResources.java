@@ -60,8 +60,6 @@ public class WorkerResources implements org.apache.thrift.TBase<WorkerResources,
   private static final org.apache.thrift.protocol.TField CPU_FIELD_DESC = new org.apache.thrift.protocol.TField("cpu", org.apache.thrift.protocol.TType.DOUBLE, (short)3);
   private static final org.apache.thrift.protocol.TField SHARED_MEM_ON_HEAP_FIELD_DESC = new org.apache.thrift.protocol.TField("shared_mem_on_heap", org.apache.thrift.protocol.TType.DOUBLE, (short)4);
   private static final org.apache.thrift.protocol.TField SHARED_MEM_OFF_HEAP_FIELD_DESC = new org.apache.thrift.protocol.TField("shared_mem_off_heap", org.apache.thrift.protocol.TType.DOUBLE, (short)5);
-  private static final org.apache.thrift.protocol.TField RESOURCES_FIELD_DESC = new org.apache.thrift.protocol.TField("resources", org.apache.thrift.protocol.TType.MAP, (short)6);
-  private static final org.apache.thrift.protocol.TField SHARED_RESOURCES_FIELD_DESC = new org.apache.thrift.protocol.TField("shared_resources", org.apache.thrift.protocol.TType.MAP, (short)7);
 
   private static final Map<Class<? extends IScheme>, SchemeFactory> schemes = new HashMap<Class<? extends IScheme>, SchemeFactory>();
   static {
@@ -74,8 +72,6 @@ public class WorkerResources implements org.apache.thrift.TBase<WorkerResources,
   private double cpu; // optional
   private double shared_mem_on_heap; // optional
   private double shared_mem_off_heap; // optional
-  private Map<String,Double> resources; // optional
-  private Map<String,Double> shared_resources; // optional
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
   public enum _Fields implements org.apache.thrift.TFieldIdEnum {
@@ -83,9 +79,7 @@ public class WorkerResources implements org.apache.thrift.TBase<WorkerResources,
     MEM_OFF_HEAP((short)2, "mem_off_heap"),
     CPU((short)3, "cpu"),
     SHARED_MEM_ON_HEAP((short)4, "shared_mem_on_heap"),
-    SHARED_MEM_OFF_HEAP((short)5, "shared_mem_off_heap"),
-    RESOURCES((short)6, "resources"),
-    SHARED_RESOURCES((short)7, "shared_resources");
+    SHARED_MEM_OFF_HEAP((short)5, "shared_mem_off_heap");
 
     private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
@@ -110,10 +104,6 @@ public class WorkerResources implements org.apache.thrift.TBase<WorkerResources,
           return SHARED_MEM_ON_HEAP;
         case 5: // SHARED_MEM_OFF_HEAP
           return SHARED_MEM_OFF_HEAP;
-        case 6: // RESOURCES
-          return RESOURCES;
-        case 7: // SHARED_RESOURCES
-          return SHARED_RESOURCES;
         default:
           return null;
       }
@@ -160,7 +150,7 @@ public class WorkerResources implements org.apache.thrift.TBase<WorkerResources,
   private static final int __SHARED_MEM_ON_HEAP_ISSET_ID = 3;
   private static final int __SHARED_MEM_OFF_HEAP_ISSET_ID = 4;
   private byte __isset_bitfield = 0;
-  private static final _Fields optionals[] = {_Fields.MEM_ON_HEAP,_Fields.MEM_OFF_HEAP,_Fields.CPU,_Fields.SHARED_MEM_ON_HEAP,_Fields.SHARED_MEM_OFF_HEAP,_Fields.RESOURCES,_Fields.SHARED_RESOURCES};
+  private static final _Fields optionals[] = {_Fields.MEM_ON_HEAP,_Fields.MEM_OFF_HEAP,_Fields.CPU,_Fields.SHARED_MEM_ON_HEAP,_Fields.SHARED_MEM_OFF_HEAP};
   public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
   static {
     Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
@@ -174,14 +164,6 @@ public class WorkerResources implements org.apache.thrift.TBase<WorkerResources,
         new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.DOUBLE)));
     tmpMap.put(_Fields.SHARED_MEM_OFF_HEAP, new org.apache.thrift.meta_data.FieldMetaData("shared_mem_off_heap", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
         new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.DOUBLE)));
-    tmpMap.put(_Fields.RESOURCES, new org.apache.thrift.meta_data.FieldMetaData("resources", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
-        new org.apache.thrift.meta_data.MapMetaData(org.apache.thrift.protocol.TType.MAP, 
-            new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING), 
-            new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.DOUBLE))));
-    tmpMap.put(_Fields.SHARED_RESOURCES, new org.apache.thrift.meta_data.FieldMetaData("shared_resources", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
-        new org.apache.thrift.meta_data.MapMetaData(org.apache.thrift.protocol.TType.MAP, 
-            new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING), 
-            new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.DOUBLE))));
     metaDataMap = Collections.unmodifiableMap(tmpMap);
     org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(WorkerResources.class, metaDataMap);
   }
@@ -199,14 +181,6 @@ public class WorkerResources implements org.apache.thrift.TBase<WorkerResources,
     this.cpu = other.cpu;
     this.shared_mem_on_heap = other.shared_mem_on_heap;
     this.shared_mem_off_heap = other.shared_mem_off_heap;
-    if (other.is_set_resources()) {
-      Map<String,Double> __this__resources = new HashMap<String,Double>(other.resources);
-      this.resources = __this__resources;
-    }
-    if (other.is_set_shared_resources()) {
-      Map<String,Double> __this__shared_resources = new HashMap<String,Double>(other.shared_resources);
-      this.shared_resources = __this__shared_resources;
-    }
   }
 
   public WorkerResources deepCopy() {
@@ -225,8 +199,6 @@ public class WorkerResources implements org.apache.thrift.TBase<WorkerResources,
     this.shared_mem_on_heap = 0.0;
     set_shared_mem_off_heap_isSet(false);
     this.shared_mem_off_heap = 0.0;
-    this.resources = null;
-    this.shared_resources = null;
   }
 
   public double get_mem_on_heap() {
@@ -339,74 +311,6 @@ public class WorkerResources implements org.apache.thrift.TBase<WorkerResources,
     __isset_bitfield = EncodingUtils.setBit(__isset_bitfield, __SHARED_MEM_OFF_HEAP_ISSET_ID, value);
   }
 
-  public int get_resources_size() {
-    return (this.resources == null) ? 0 : this.resources.size();
-  }
-
-  public void put_to_resources(String key, double val) {
-    if (this.resources == null) {
-      this.resources = new HashMap<String,Double>();
-    }
-    this.resources.put(key, val);
-  }
-
-  public Map<String,Double> get_resources() {
-    return this.resources;
-  }
-
-  public void set_resources(Map<String,Double> resources) {
-    this.resources = resources;
-  }
-
-  public void unset_resources() {
-    this.resources = null;
-  }
-
-  /** Returns true if field resources is set (has been assigned a value) and false otherwise */
-  public boolean is_set_resources() {
-    return this.resources != null;
-  }
-
-  public void set_resources_isSet(boolean value) {
-    if (!value) {
-      this.resources = null;
-    }
-  }
-
-  public int get_shared_resources_size() {
-    return (this.shared_resources == null) ? 0 : this.shared_resources.size();
-  }
-
-  public void put_to_shared_resources(String key, double val) {
-    if (this.shared_resources == null) {
-      this.shared_resources = new HashMap<String,Double>();
-    }
-    this.shared_resources.put(key, val);
-  }
-
-  public Map<String,Double> get_shared_resources() {
-    return this.shared_resources;
-  }
-
-  public void set_shared_resources(Map<String,Double> shared_resources) {
-    this.shared_resources = shared_resources;
-  }
-
-  public void unset_shared_resources() {
-    this.shared_resources = null;
-  }
-
-  /** Returns true if field shared_resources is set (has been assigned a value) and false otherwise */
-  public boolean is_set_shared_resources() {
-    return this.shared_resources != null;
-  }
-
-  public void set_shared_resources_isSet(boolean value) {
-    if (!value) {
-      this.shared_resources = null;
-    }
-  }
-
   public void setFieldValue(_Fields field, Object value) {
     switch (field) {
     case MEM_ON_HEAP:
@@ -449,22 +353,6 @@ public class WorkerResources implements org.apache.thrift.TBase<WorkerResources,
       }
       break;
 
-    case RESOURCES:
-      if (value == null) {
-        unset_resources();
-      } else {
-        set_resources((Map<String,Double>)value);
-      }
-      break;
-
-    case SHARED_RESOURCES:
-      if (value == null) {
-        unset_shared_resources();
-      } else {
-        set_shared_resources((Map<String,Double>)value);
-      }
-      break;
-
     }
   }
 
@@ -484,12 +372,6 @@ public class WorkerResources implements org.apache.thrift.TBase<WorkerResources,
 
     case SHARED_MEM_OFF_HEAP:
       return get_shared_mem_off_heap();
-
-    case RESOURCES:
-      return get_resources();
-
-    case SHARED_RESOURCES:
-      return get_shared_resources();
 
     }
     throw new IllegalStateException();
@@ -512,10 +394,6 @@ public class WorkerResources implements org.apache.thrift.TBase<WorkerResources,
       return is_set_shared_mem_on_heap();
     case SHARED_MEM_OFF_HEAP:
       return is_set_shared_mem_off_heap();
-    case RESOURCES:
-      return is_set_resources();
-    case SHARED_RESOURCES:
-      return is_set_shared_resources();
     }
     throw new IllegalStateException();
   }
@@ -578,24 +456,6 @@ public class WorkerResources implements org.apache.thrift.TBase<WorkerResources,
         return false;
     }
 
-    boolean this_present_resources = true && this.is_set_resources();
-    boolean that_present_resources = true && that.is_set_resources();
-    if (this_present_resources || that_present_resources) {
-      if (!(this_present_resources && that_present_resources))
-        return false;
-      if (!this.resources.equals(that.resources))
-        return false;
-    }
-
-    boolean this_present_shared_resources = true && this.is_set_shared_resources();
-    boolean that_present_shared_resources = true && that.is_set_shared_resources();
-    if (this_present_shared_resources || that_present_shared_resources) {
-      if (!(this_present_shared_resources && that_present_shared_resources))
-        return false;
-      if (!this.shared_resources.equals(that.shared_resources))
-        return false;
-    }
-
     return true;
   }
 
@@ -627,16 +487,6 @@ public class WorkerResources implements org.apache.thrift.TBase<WorkerResources,
     list.add(present_shared_mem_off_heap);
     if (present_shared_mem_off_heap)
       list.add(shared_mem_off_heap);
-
-    boolean present_resources = true && (is_set_resources());
-    list.add(present_resources);
-    if (present_resources)
-      list.add(resources);
-
-    boolean present_shared_resources = true && (is_set_shared_resources());
-    list.add(present_shared_resources);
-    if (present_shared_resources)
-      list.add(shared_resources);
 
     return list.hashCode();
   }
@@ -699,26 +549,6 @@ public class WorkerResources implements org.apache.thrift.TBase<WorkerResources,
         return lastComparison;
       }
     }
-    lastComparison = Boolean.valueOf(is_set_resources()).compareTo(other.is_set_resources());
-    if (lastComparison != 0) {
-      return lastComparison;
-    }
-    if (is_set_resources()) {
-      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.resources, other.resources);
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-    }
-    lastComparison = Boolean.valueOf(is_set_shared_resources()).compareTo(other.is_set_shared_resources());
-    if (lastComparison != 0) {
-      return lastComparison;
-    }
-    if (is_set_shared_resources()) {
-      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.shared_resources, other.shared_resources);
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-    }
     return 0;
   }
 
@@ -766,26 +596,6 @@ public class WorkerResources implements org.apache.thrift.TBase<WorkerResources,
       if (!first) sb.append(", ");
       sb.append("shared_mem_off_heap:");
       sb.append(this.shared_mem_off_heap);
-      first = false;
-    }
-    if (is_set_resources()) {
-      if (!first) sb.append(", ");
-      sb.append("resources:");
-      if (this.resources == null) {
-        sb.append("null");
-      } else {
-        sb.append(this.resources);
-      }
-      first = false;
-    }
-    if (is_set_shared_resources()) {
-      if (!first) sb.append(", ");
-      sb.append("shared_resources:");
-      if (this.shared_resources == null) {
-        sb.append("null");
-      } else {
-        sb.append(this.shared_resources);
-      }
       first = false;
     }
     sb.append(")");
@@ -873,46 +683,6 @@ public class WorkerResources implements org.apache.thrift.TBase<WorkerResources,
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
             }
             break;
-          case 6: // RESOURCES
-            if (schemeField.type == org.apache.thrift.protocol.TType.MAP) {
-              {
-                org.apache.thrift.protocol.TMap _map666 = iprot.readMapBegin();
-                struct.resources = new HashMap<String,Double>(2*_map666.size);
-                String _key667;
-                double _val668;
-                for (int _i669 = 0; _i669 < _map666.size; ++_i669)
-                {
-                  _key667 = iprot.readString();
-                  _val668 = iprot.readDouble();
-                  struct.resources.put(_key667, _val668);
-                }
-                iprot.readMapEnd();
-              }
-              struct.set_resources_isSet(true);
-            } else { 
-              org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
-            }
-            break;
-          case 7: // SHARED_RESOURCES
-            if (schemeField.type == org.apache.thrift.protocol.TType.MAP) {
-              {
-                org.apache.thrift.protocol.TMap _map670 = iprot.readMapBegin();
-                struct.shared_resources = new HashMap<String,Double>(2*_map670.size);
-                String _key671;
-                double _val672;
-                for (int _i673 = 0; _i673 < _map670.size; ++_i673)
-                {
-                  _key671 = iprot.readString();
-                  _val672 = iprot.readDouble();
-                  struct.shared_resources.put(_key671, _val672);
-                }
-                iprot.readMapEnd();
-              }
-              struct.set_shared_resources_isSet(true);
-            } else { 
-              org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
-            }
-            break;
           default:
             org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
         }
@@ -951,36 +721,6 @@ public class WorkerResources implements org.apache.thrift.TBase<WorkerResources,
         oprot.writeDouble(struct.shared_mem_off_heap);
         oprot.writeFieldEnd();
       }
-      if (struct.resources != null) {
-        if (struct.is_set_resources()) {
-          oprot.writeFieldBegin(RESOURCES_FIELD_DESC);
-          {
-            oprot.writeMapBegin(new org.apache.thrift.protocol.TMap(org.apache.thrift.protocol.TType.STRING, org.apache.thrift.protocol.TType.DOUBLE, struct.resources.size()));
-            for (Map.Entry<String, Double> _iter674 : struct.resources.entrySet())
-            {
-              oprot.writeString(_iter674.getKey());
-              oprot.writeDouble(_iter674.getValue());
-            }
-            oprot.writeMapEnd();
-          }
-          oprot.writeFieldEnd();
-        }
-      }
-      if (struct.shared_resources != null) {
-        if (struct.is_set_shared_resources()) {
-          oprot.writeFieldBegin(SHARED_RESOURCES_FIELD_DESC);
-          {
-            oprot.writeMapBegin(new org.apache.thrift.protocol.TMap(org.apache.thrift.protocol.TType.STRING, org.apache.thrift.protocol.TType.DOUBLE, struct.shared_resources.size()));
-            for (Map.Entry<String, Double> _iter675 : struct.shared_resources.entrySet())
-            {
-              oprot.writeString(_iter675.getKey());
-              oprot.writeDouble(_iter675.getValue());
-            }
-            oprot.writeMapEnd();
-          }
-          oprot.writeFieldEnd();
-        }
-      }
       oprot.writeFieldStop();
       oprot.writeStructEnd();
     }
@@ -1014,13 +754,7 @@ public class WorkerResources implements org.apache.thrift.TBase<WorkerResources,
       if (struct.is_set_shared_mem_off_heap()) {
         optionals.set(4);
       }
-      if (struct.is_set_resources()) {
-        optionals.set(5);
-      }
-      if (struct.is_set_shared_resources()) {
-        optionals.set(6);
-      }
-      oprot.writeBitSet(optionals, 7);
+      oprot.writeBitSet(optionals, 5);
       if (struct.is_set_mem_on_heap()) {
         oprot.writeDouble(struct.mem_on_heap);
       }
@@ -1036,32 +770,12 @@ public class WorkerResources implements org.apache.thrift.TBase<WorkerResources,
       if (struct.is_set_shared_mem_off_heap()) {
         oprot.writeDouble(struct.shared_mem_off_heap);
       }
-      if (struct.is_set_resources()) {
-        {
-          oprot.writeI32(struct.resources.size());
-          for (Map.Entry<String, Double> _iter676 : struct.resources.entrySet())
-          {
-            oprot.writeString(_iter676.getKey());
-            oprot.writeDouble(_iter676.getValue());
-          }
-        }
-      }
-      if (struct.is_set_shared_resources()) {
-        {
-          oprot.writeI32(struct.shared_resources.size());
-          for (Map.Entry<String, Double> _iter677 : struct.shared_resources.entrySet())
-          {
-            oprot.writeString(_iter677.getKey());
-            oprot.writeDouble(_iter677.getValue());
-          }
-        }
-      }
     }
 
     @Override
     public void read(org.apache.thrift.protocol.TProtocol prot, WorkerResources struct) throws org.apache.thrift.TException {
       TTupleProtocol iprot = (TTupleProtocol) prot;
-      BitSet incoming = iprot.readBitSet(7);
+      BitSet incoming = iprot.readBitSet(5);
       if (incoming.get(0)) {
         struct.mem_on_heap = iprot.readDouble();
         struct.set_mem_on_heap_isSet(true);
@@ -1081,36 +795,6 @@ public class WorkerResources implements org.apache.thrift.TBase<WorkerResources,
       if (incoming.get(4)) {
         struct.shared_mem_off_heap = iprot.readDouble();
         struct.set_shared_mem_off_heap_isSet(true);
-      }
-      if (incoming.get(5)) {
-        {
-          org.apache.thrift.protocol.TMap _map678 = new org.apache.thrift.protocol.TMap(org.apache.thrift.protocol.TType.STRING, org.apache.thrift.protocol.TType.DOUBLE, iprot.readI32());
-          struct.resources = new HashMap<String,Double>(2*_map678.size);
-          String _key679;
-          double _val680;
-          for (int _i681 = 0; _i681 < _map678.size; ++_i681)
-          {
-            _key679 = iprot.readString();
-            _val680 = iprot.readDouble();
-            struct.resources.put(_key679, _val680);
-          }
-        }
-        struct.set_resources_isSet(true);
-      }
-      if (incoming.get(6)) {
-        {
-          org.apache.thrift.protocol.TMap _map682 = new org.apache.thrift.protocol.TMap(org.apache.thrift.protocol.TType.STRING, org.apache.thrift.protocol.TType.DOUBLE, iprot.readI32());
-          struct.shared_resources = new HashMap<String,Double>(2*_map682.size);
-          String _key683;
-          double _val684;
-          for (int _i685 = 0; _i685 < _map682.size; ++_i685)
-          {
-            _key683 = iprot.readString();
-            _val684 = iprot.readDouble();
-            struct.shared_resources.put(_key683, _val684);
-          }
-        }
-        struct.set_shared_resources_isSet(true);
       }
     }
   }
