@@ -31,7 +31,6 @@ import org.apache.storm.blobstore.BlobStore;
 import org.apache.storm.blobstore.InputStreamWithMeta;
 import org.apache.storm.callback.DefaultWatcherCallBack;
 import org.apache.storm.cluster.ClusterUtils;
-import org.apache.storm.daemon.nimbus.TopoCache;
 import org.apache.storm.generated.AuthorizationException;
 import org.apache.storm.generated.KeyNotFoundException;
 import org.apache.storm.generated.StormTopology;
@@ -125,10 +124,7 @@ public class Zookeeper {
     }
 
     // Leader latch listener that will be invoked when we either gain or lose leadership
-    public static LeaderLatchListener leaderLatchListenerImpl(final Map<String, Object> conf, final CuratorFramework zk,
-                                                              final BlobStore blobStore, final LeaderLatch leaderLatch,
-                                                              final TopoCache tc)
-        throws UnknownHostException {
+    public static LeaderLatchListener leaderLatchListenerImpl(final Map<String, Object> conf, final CuratorFramework zk, final BlobStore blobStore, final LeaderLatch leaderLatch) throws UnknownHostException {
         final String hostName = InetAddress.getLocalHost().getCanonicalHostName();
         return new LeaderLatchListener() {
             final String STORM_JAR_SUFFIX = "-stormjar.jar";
@@ -137,8 +133,7 @@ public class Zookeeper {
 
             @Override
             public void isLeader() {
-                Set<String> activeTopologyIds = new TreeSet<>(ClientZookeeper.getChildren(zk,
-                    conf.get(Config.STORM_ZOOKEEPER_ROOT) + ClusterUtils.STORMS_SUBTREE, false));
+                Set<String> activeTopologyIds = new TreeSet<>(ClientZookeeper.getChildren(zk, conf.get(Config.STORM_ZOOKEEPER_ROOT) + ClusterUtils.STORMS_SUBTREE, false));
 
                 Set<String> activeTopologyBlobKeys = populateTopologyBlobKeys(activeTopologyIds);
                 Set<String> activeTopologyCodeKeys = filterTopologyCodeKeys(activeTopologyBlobKeys);
@@ -162,10 +157,8 @@ public class Zookeeper {
 
                     if (diffDependencies.isEmpty()) {
                         LOG.info("Accepting leadership, all active topologies and corresponding dependencies found locally.");
-                        tc.clear();
                     } else {
-                        LOG.info("Code for all active topologies is available locally, but some dependencies are not found locally, "
-                            + "giving up leadership.");
+                        LOG.info("Code for all active topologies is available locally, but some dependencies are not found locally, giving up leadership.");
                         closeLatch();
                     }
                 } else {
@@ -177,8 +170,6 @@ public class Zookeeper {
             @Override
             public void notLeader() {
                 LOG.info("{} lost leadership.", hostName);
-                //Just to be sure
-                tc.clear();
             }
 
             private String generateJoinedString(Set<String> activeTopologyIds) {
@@ -250,13 +241,11 @@ public class Zookeeper {
         };
     }
 
-    public static ILeaderElector zkLeaderElector(Map<String, Object> conf, BlobStore blobStore, final TopoCache tc)
-        throws UnknownHostException {
-        return _instance.zkLeaderElectorImpl(conf, blobStore, tc);
+    public static ILeaderElector zkLeaderElector(Map<String, Object> conf, BlobStore blobStore) throws UnknownHostException {
+        return _instance.zkLeaderElectorImpl(conf, blobStore);
     }
 
-    protected ILeaderElector zkLeaderElectorImpl(Map<String, Object> conf, BlobStore blobStore, final TopoCache tc)
-        throws UnknownHostException {
+    protected ILeaderElector zkLeaderElectorImpl(Map<String, Object> conf, BlobStore blobStore) throws UnknownHostException {
         List<String> servers = (List<String>) conf.get(Config.STORM_ZOOKEEPER_SERVERS);
         Object port = conf.get(Config.STORM_ZOOKEEPER_PORT);
         CuratorFramework zk = ClientZookeeper.mkClient(conf, servers, port, "", new DefaultWatcherCallBack(), conf);
@@ -264,9 +253,9 @@ public class Zookeeper {
         String id = NimbusInfo.fromConf(conf).toHostPortString();
         AtomicReference<LeaderLatch> leaderLatchAtomicReference = new AtomicReference<>(new LeaderLatch(zk, leaderLockPath, id));
         AtomicReference<LeaderLatchListener> leaderLatchListenerAtomicReference =
-                new AtomicReference<>(leaderLatchListenerImpl(conf, zk, blobStore, leaderLatchAtomicReference.get(), tc));
+                new AtomicReference<>(leaderLatchListenerImpl(conf, zk, blobStore, leaderLatchAtomicReference.get()));
         return new LeaderElectorImp(conf, servers, zk, leaderLockPath, id, leaderLatchAtomicReference,
-            leaderLatchListenerAtomicReference, blobStore, tc);
+            leaderLatchListenerAtomicReference, blobStore);
     }
 
 }

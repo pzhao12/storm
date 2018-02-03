@@ -115,7 +115,7 @@ public abstract class Executor implements Callable, EventHandler<Object> {
 
     protected final IReportError reportError;
     protected final Random rand;
-    protected final DisruptorQueue sendQueue;
+    protected final DisruptorQueue transferQueue;
     protected final DisruptorQueue receiveQueue;
     protected Map<Integer, Task> idToTask;
     protected final Map<String, String> credentials;
@@ -140,8 +140,8 @@ public abstract class Executor implements Callable, EventHandler<Object> {
         this.stormActive = workerData.getIsTopologyActive();
         this.stormComponentDebug = workerData.getStormComponentToDebug();
 
-        this.sendQueue = mkExecutorBatchQueue(topoConf, executorId);
-        this.executorTransfer = new ExecutorTransfer(workerData, sendQueue, topoConf);
+        this.transferQueue = mkExecutorBatchQueue(topoConf, executorId);
+        this.executorTransfer = new ExecutorTransfer(workerData, transferQueue, topoConf);
 
         this.suicideFn = workerData.getSuicideCallback();
         try {
@@ -253,7 +253,7 @@ public abstract class Executor implements Callable, EventHandler<Object> {
         setupTicks(StatsUtil.SPOUT.equals(type));
 
         LOG.info("Finished loading executor " + componentId + ":" + executorId);
-        return new ExecutorShutdown(this, Lists.newArrayList(systemThreads, handlers), idToTask, receiveQueue, sendQueue);
+        return new ExecutorShutdown(this, Lists.newArrayList(systemThreads, handlers), idToTask);
     }
 
     public abstract void tupleActionFn(int taskId, TupleImpl tuple) throws Exception;
@@ -562,7 +562,7 @@ public abstract class Executor implements Callable, EventHandler<Object> {
     }
 
     public DisruptorQueue getTransferWorkerQueue() {
-        return sendQueue;
+        return transferQueue;
     }
 
     public IStormClusterState getStormClusterState() {

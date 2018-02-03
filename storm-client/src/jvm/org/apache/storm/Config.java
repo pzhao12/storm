@@ -129,23 +129,6 @@ public class Config extends HashMap<String, Object> {
     public static final String BACKPRESSURE_DISRUPTOR_LOW_WATERMARK="backpressure.disruptor.low.watermark";
 
     /**
-     * How long until the backpressure znode is invalid.
-     * It's measured by the data (timestamp) of the znode, not the ctime (creation time) or mtime (modification time), etc.
-     * This must be larger than BACKPRESSURE_ZNODE_UPDATE_FREQ_SECS.
-     */
-    @isInteger
-    @isPositiveNumber
-    public static final String BACKPRESSURE_ZNODE_TIMEOUT_SECS = "backpressure.znode.timeout.secs";
-
-    /**
-     * How often will the data (timestamp) of backpressure znode be updated.
-     * But if the worker backpressure status (on/off) changes, the znode will be updated anyway.
-     */
-    @isInteger
-    @isPositiveNumber
-    public static final String BACKPRESSURE_ZNODE_UPDATE_FREQ_SECS = "backpressure.znode.update.freq.secs";
-
-    /**
      * A list of users that are allowed to interact with the topology.  To use this set
      * nimbus.authorizer to org.apache.storm.security.auth.authorizer.SimpleACLAuthorizer
      */
@@ -242,50 +225,6 @@ public class Config extends HashMap<String, Object> {
      */
     @isPositiveNumber(includeZero = true)
     public static final String TOPOLOGY_COMPONENT_CPU_PCORE_PERCENT = "topology.component.cpu.pcore.percent";
-
-    /**
-     * The maximum amount of memory an instance of an acker will take on heap. This enables the scheduler
-     * to allocate slots on machines with enough available memory.  A default value will be set for this config if user does not override
-     */
-    @isPositiveNumber(includeZero = true)
-    public static final String TOPOLOGY_ACKER_RESOURCES_ONHEAP_MEMORY_MB = "topology.acker.resources.onheap.memory.mb";
-
-    /**
-     * The maximum amount of memory an instance of an acker will take off heap. This enables the scheduler
-     * to allocate slots on machines with enough available memory.  A default value will be set for this config if user does not override
-     */
-    @isPositiveNumber(includeZero = true)
-    public static final String TOPOLOGY_ACKER_RESOURCES_OFFHEAP_MEMORY_MB = "topology.acker.resources.offheap.memory.mb";
-
-    /**
-     * The config indicates the percentage of cpu for a core an instance(executor) of an acker will use.
-     * Assuming the a core value to be 100, a value of 10 indicates 10% of the core.
-     * The P in PCORE represents the term "physical".  A default value will be set for this config if user does not override
-     */
-    @isPositiveNumber(includeZero = true)
-    public static final String TOPOLOGY_ACKER_CPU_PCORE_PERCENT = "topology.acker.cpu.pcore.percent";
-
-    /**
-     * The maximum amount of memory an instance of a metrics consumer will take on heap. This enables the scheduler
-     * to allocate slots on machines with enough available memory.  A default value will be set for this config if user does not override
-     */
-    @isPositiveNumber(includeZero = true)
-    public static final String TOPOLOGY_METRICS_CONSUMER_RESOURCES_ONHEAP_MEMORY_MB = "topology.metrics.consumer.resources.onheap.memory.mb";
-
-    /**
-     * The maximum amount of memory an instance of a metrics consumer will take off heap. This enables the scheduler
-     * to allocate slots on machines with enough available memory.  A default value will be set for this config if user does not override
-     */
-    @isPositiveNumber(includeZero = true)
-    public static final String TOPOLOGY_METRICS_CONSUMER_RESOURCES_OFFHEAP_MEMORY_MB = "topology.metrics.consumer.resources.offheap.memory.mb";
-
-    /**
-     * The config indicates the percentage of cpu for a core an instance(executor) of a metrics consumer will use.
-     * Assuming the a core value to be 100, a value of 10 indicates 10% of the core.
-     * The P in PCORE represents the term "physical".  A default value will be set for this config if user does not override
-     */
-    @isPositiveNumber(includeZero = true)
-    public static final String TOPOLOGY_METRICS_CONSUMER_CPU_PCORE_PERCENT = "topology.metrics.consumer.cpu.pcore.percent";
 
     /**
      * The class name of the {@link org.apache.storm.state.StateProvider} implementation. If not specified

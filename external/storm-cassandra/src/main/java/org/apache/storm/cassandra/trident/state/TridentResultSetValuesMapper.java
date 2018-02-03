@@ -44,8 +44,6 @@ public class TridentResultSetValuesMapper implements CQLResultSetValuesMapper {
     @Override
     public List<List<Values>> map(Session session, Statement statement, ITuple tuple) {
         List<List<Values>> list = new ArrayList<>();
-        List<Values> innerList = new LinkedList<>();
-        list.add(innerList);
         ResultSet resultSet = session.execute(statement);
         for (Row row : resultSet) {
             final Values values = new Values();
@@ -56,7 +54,9 @@ public class TridentResultSetValuesMapper implements CQLResultSetValuesMapper {
                     values.add(row.getObject(field));
                 }
             }
-            innerList.add(values);
+            list.add(new LinkedList<Values>() {{
+                add(values);
+            }});
         }
         return list;
     }

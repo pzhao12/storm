@@ -28,7 +28,6 @@ import org.apache.storm.cluster.IStormClusterState;
 import org.apache.storm.cluster.VersionedData;
 import org.apache.storm.daemon.StormCommon;
 import org.apache.storm.daemon.supervisor.AdvancedFSOps;
-import org.apache.storm.executor.IRunningExecutor;
 import org.apache.storm.generated.Assignment;
 import org.apache.storm.generated.DebugOptions;
 import org.apache.storm.generated.Grouping;
@@ -211,10 +210,8 @@ public class WorkerState {
     final Map<String, Object> userSharedResources;
     final LoadMapping loadMapping;
     final AtomicReference<Map<String, VersionedData<Assignment>>> assignmentVersions;
-    // Whether this worker is going slow. 0 indicates the backpressure is off
-    final AtomicLong backpressure = new AtomicLong(0);
-    // How long until the backpressure znode is invalid.
-    final long backpressureZnodeTimeoutMs;
+    // Whether this worker is going slow
+    final AtomicBoolean backpressure = new AtomicBoolean(false);
     // If the transfer queue is backed-up
     final AtomicBoolean transferBackpressure = new AtomicBoolean(false);
     // a trigger for synchronization with executors
@@ -300,7 +297,6 @@ public class WorkerState {
         }
         Collections.sort(taskIds);
         this.topologyConf = topologyConf;
-        this.backpressureZnodeTimeoutMs = ObjectReader.getInt(topologyConf.get(Config.BACKPRESSURE_ZNODE_TIMEOUT_SECS)) * 1000;
         this.topology = ConfigUtils.readSupervisorTopology(conf, topologyId, AdvancedFSOps.make(conf));
         this.systemTopology = StormCommon.systemTopology(topologyConf, topology);
         this.taskToComponent = StormCommon.stormTaskInfo(topology, topologyConf);
@@ -336,7 +332,6 @@ public class WorkerState {
             LOG.warn("WILL TRY TO SERIALIZE ALL TUPLES (Turn off {} for production", Config.TOPOLOGY_TESTING_ALWAYS_TRY_SERIALIZE);
         }
         this.drainer = new TransferDrainer();
-
     }
 
     public void refreshConnections() {
@@ -445,24 +440,19 @@ public class WorkerState {
     }
 
     public void refreshThrottle() {
-        boolean backpressure = stormClusterState.topologyBackpressure(topologyId, backpressureZnodeTimeoutMs, this::refreshThrottle);
+        boolean backpressure = stormClusterState.topologyBackpressure(topologyId, this::refreshThrottle);
         this.throttleOn.set(backpressure);
     }
 
-    private static double getQueueLoad(DisruptorQueue q) {
-        DisruptorQueue.QueueMetrics qMetrics = q.getMetrics();
-        return ((double) qMetrics.population()) / qMetrics.capacity();
-    }
-
-    public void refreshLoad(List<IRunningExecutor> execs) {
-        Set<Integer> remoteTasks = Sets.difference(new HashSet<>(outboundTasks), new HashSet<>(taskIds));
+    public void refreshLoad() {
+        Set<Integer> remoteTasks = Sets.difference(new HashSet<Integer>(outboundTasks), new HashSet<>(taskIds));
         Long now = System.currentTimeMillis();
-        Map<Integer, Double> localLoad = new HashMap<>();
-        for (IRunningExecutor exec: execs) {
-            double receiveLoad = getQueueLoad(exec.getReceiveQueue());
-            double sendLoad = getQueueLoad(exec.getSendQueue());
-            localLoad.put(exec.getExecutorId().get(0).intValue(), Math.max(receiveLoad, sendLoad));
-        }
+        Map<Integer, Double> localLoad = shortExecutorReceiveQueueMap.entrySet().stream().collect(Collectors.toMap(
+            (Function<Map.Entry<Integer, DisruptorQueue>, Integer>) Map.Entry::getKey,
+            (Function<Map.Entry<Integer, DisruptorQueue>, Double>) entry -> {
+                DisruptorQueue.QueueMetrics qMetrics = entry.getValue().getMetrics();
+                return ( (double) qMetrics.population()) / qMetrics.capacity();
+            }));
 
         Map<Integer, Load> remoteLoad = new HashMap<>();
         cachedNodeToPortSocket.get().values().stream().forEach(conn -> remoteLoad.putAll(conn.getLoad(remoteTasks)));
@@ -593,22 +583,20 @@ public class WorkerState {
 
     public void runWorkerStartHooks() {
         WorkerTopologyContext workerContext = getWorkerTopologyContext();
-        if (topology.is_set_worker_hooks()) {
-            for (ByteBuffer hook : topology.get_worker_hooks()) {
-                byte[] hookBytes = Utils.toByteArray(hook);
-                BaseWorkerHook hookObject = Utils.javaDeserialize(hookBytes, BaseWorkerHook.class);
-                hookObject.start(topologyConf, workerContext);
-            }
+        for (ByteBuffer hook : topology.get_worker_hooks()) {
+            byte[] hookBytes = Utils.toByteArray(hook);
+            BaseWorkerHook hookObject = Utils.javaDeserialize(hookBytes, BaseWorkerHook.class);
+            hookObject.start(topologyConf, workerContext);
+
         }
     }
 
     public void runWorkerShutdownHooks() {
-        if (topology.is_set_worker_hooks()) {
-            for (ByteBuffer hook : topology.get_worker_hooks()) {
-                byte[] hookBytes = Utils.toByteArray(hook);
-                BaseWorkerHook hookObject = Utils.javaDeserialize(hookBytes, BaseWorkerHook.class);
-                hookObject.shutdown();
-            }
+        for (ByteBuffer hook : topology.get_worker_hooks()) {
+            byte[] hookBytes = Utils.toByteArray(hook);
+            BaseWorkerHook hookObject = Utils.javaDeserialize(hookBytes, BaseWorkerHook.class);
+            hookObject.shutdown();
+
         }
     }
 

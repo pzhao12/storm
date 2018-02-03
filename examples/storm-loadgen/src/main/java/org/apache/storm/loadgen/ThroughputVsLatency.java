@@ -21,6 +21,7 @@ package org.apache.storm.loadgen;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
+
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.DefaultParser;
@@ -31,7 +32,6 @@ import org.apache.commons.cli.ParseException;
 import org.apache.storm.Config;
 import org.apache.storm.StormSubmitter;
 import org.apache.storm.metric.LoggingMetricsConsumer;
-import org.apache.storm.task.TopologyContext;
 import org.apache.storm.topology.BasicOutputCollector;
 import org.apache.storm.topology.OutputFieldsDeclarer;
 import org.apache.storm.topology.TopologyBuilder;
@@ -40,8 +40,6 @@ import org.apache.storm.tuple.Fields;
 import org.apache.storm.tuple.Tuple;
 import org.apache.storm.tuple.Values;
 import org.apache.storm.utils.NimbusClient;
-import org.apache.storm.utils.Time;
-import org.apache.storm.utils.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -88,28 +86,12 @@ public class ThroughputVsLatency {
     }
 
     public static class SplitSentence extends BaseBasicBolt {
-        private ExecAndProcessLatencyEngine sleep;
-        private int executorIndex;
-
-        public SplitSentence(SlowExecutorPattern slowness) {
-            super();
-            sleep = new ExecAndProcessLatencyEngine(slowness);
-        }
-
-        @Override
-        public void prepare(Map stormConf, TopologyContext context) {
-            executorIndex = context.getThisTaskIndex();
-            sleep.prepare();
-        }
-
         @Override
         public void execute(Tuple tuple, BasicOutputCollector collector) {
-            sleep.simulateProcessAndExecTime(executorIndex, Time.nanoTime(), null , () -> {
-                String sentence = tuple.getString(0);
-                for (String word: sentence.split("\\s+")) {
-                    collector.emit(new Values(word, 1));
-                }
-            });
+            String sentence = tuple.getString(0);
+            for (String word: sentence.split("\\s+")) {
+                collector.emit(new Values(word, 1));
+            }
         }
 
         @Override
@@ -181,13 +163,6 @@ public class ThroughputVsLatency {
             .desc("Number of splitter bolts to use (defaults to " + DEFAULT_NUM_SPLITS + ")")
             .build());
         options.addOption(Option.builder()
-            .longOpt("splitter-imbalance")
-            .argName("MS(:COUNT)?")
-            .hasArg()
-            .desc("The number of ms that the first COUNT splitters will wait before processing.  This creates an imbalance "
-                + "that helps test load aware groupings (defaults to 0:1)")
-            .build());
-        options.addOption(Option.builder()
             .longOpt("counters")
             .argName("NUM")
             .hasArg()
@@ -197,7 +172,6 @@ public class ThroughputVsLatency {
         CommandLineParser parser = new DefaultParser();
         CommandLine cmd = null;
         Exception commandLineException = null;
-        SlowExecutorPattern slowness = null;
         double numMins = TEST_EXECUTE_TIME_DEFAULT;
         double ratePerSecond = DEFAULT_RATE_PER_SECOND;
         String name = DEFAULT_TOPO_NAME;
@@ -224,9 +198,6 @@ public class ThroughputVsLatency {
             if (cmd.hasOption("counters")) {
                 numCounts = Integer.parseInt(cmd.getOptionValue("counters"));
             }
-            if (cmd.hasOption("splitter-imbalance")) {
-                slowness = SlowExecutorPattern.fromString(cmd.getOptionValue("splitter-imbalance"));
-            }
         } catch (ParseException | NumberFormatException e) {
             commandLineException = e;
         }
@@ -245,12 +216,11 @@ public class ThroughputVsLatency {
         metrics.put("count_parallel", numCounts);
 
         Config conf = new Config();
-        Map<String, Object> sysConf = Utils.readStormConfig();
-        LoadMetricsServer metricServer = new LoadMetricsServer(sysConf, cmd, metrics);
+        LoadMetricsServer metricServer = new LoadMetricsServer(conf, cmd, metrics);
         metricServer.serve();
         String url = metricServer.getUrl();
 
-        NimbusClient client = NimbusClient.getConfiguredClient(sysConf);
+        NimbusClient client = NimbusClient.getConfiguredClient(conf);
         conf.registerMetricsConsumer(LoggingMetricsConsumer.class);
         conf.registerMetricsConsumer(HttpForwardingMetricsConsumer.class, url, 1);
         Map<String, String> workerMetrics = new HashMap<>();
@@ -268,8 +238,7 @@ public class ThroughputVsLatency {
         TopologyBuilder builder = new TopologyBuilder();
 
         builder.setSpout("spout", new FastRandomSentenceSpout((long) ratePerSecond / numSpouts), numSpouts);
-        builder.setBolt("split", new SplitSentence(slowness), numSplits)
-            .shuffleGrouping("spout");
+        builder.setBolt("split", new SplitSentence(), numSplits).shuffleGrouping("spout");
         builder.setBolt("count", new WordCount(), numCounts).fieldsGrouping("split", new Fields("word"));
 
         int exitStatus = -1;

@@ -63,7 +63,6 @@ import java.util.regex.Pattern;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
-import com.google.common.collect.Lists;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.input.ClassLoaderObjectInputStream;
 import org.apache.storm.Config;
@@ -107,7 +106,6 @@ public class Utils {
     public static final String DEFAULT_STREAM_ID = "default";
     private static final Set<Class> defaultAllowedExceptions = new HashSet<>();
     public static final String FILE_PATH_SEPARATOR = System.getProperty("file.separator");
-    private static final List<String> LOCALHOST_ADDRESSES = Lists.newArrayList("localhost", "127.0.0.1", "0:0:0:0:0:0:0:1");
 
     private static ThreadLocal<TSerializer> threadSer = new ThreadLocal<TSerializer>();
     private static ThreadLocal<TDeserializer> threadDes = new ThreadLocal<TDeserializer>();
@@ -1104,11 +1102,21 @@ public class Utils {
     public static long getVersionFromBlobVersionFile(File versionFile) {
         long currentVersion = 0;
         if (versionFile.exists() && !(versionFile.isDirectory())) {
-            try (BufferedReader br = new BufferedReader(new FileReader(versionFile))) {
+            BufferedReader br = null;
+            try {
+                br = new BufferedReader(new FileReader(versionFile));
                 String line = br.readLine();
                 currentVersion = Long.parseLong(line);
             } catch (IOException e) {
                 throw new RuntimeException(e);
+            } finally {
+                try {
+                    if (br != null) {
+                        br.close();
+                    }
+                } catch (Exception ignore) {
+                    LOG.error("Exception trying to cleanup", ignore);
+                }
             }
             return currentVersion;
         } else {
@@ -1496,17 +1504,5 @@ public class Utils {
             defaultsConf.putAll(stormConf);
         }
         return defaultsConf;
-    }
-
-    public static boolean isLocalhostAddress(String address) {
-        return LOCALHOST_ADDRESSES.contains(address);
-    }
-
-    public static <K, V> Map<K, V> merge(Map<? extends K, ? extends V> first, Map<? extends K, ? extends V> other) {
-        Map<K, V> ret = new HashMap<>(first);
-        if (other != null) {
-            ret.putAll(other);
-        }
-        return ret;
     }
 }

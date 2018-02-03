@@ -118,7 +118,7 @@ public class SpoutExecutor extends Executor {
             this.outputCollectors.add(outputCollector);
 
             taskData.getBuiltInMetrics().registerAll(topoConf, taskData.getUserContext());
-            Map<String, DisruptorQueue> map = ImmutableMap.of("sendqueue", sendQueue, "receive", receiveQueue);
+            Map<String, DisruptorQueue> map = ImmutableMap.of("sendqueue", transferQueue, "receive", receiveQueue);
             BuiltinMetricsUtil.registerQueueMetrics(map, topoConf, taskData.getUserContext());
 
             if (spoutObject instanceof ICredentialsListener) {
@@ -152,7 +152,7 @@ public class SpoutExecutor extends Executor {
                             spout.activate();
                         }
                     }
-                    if (!sendQueue.isFull() && !throttleOn && !reachedMaxSpoutPending) {
+                    if (!transferQueue.isFull() && !throttleOn && !reachedMaxSpoutPending) {
                         for (ISpout spout : spouts) {
                             spout.nextTuple();
                         }

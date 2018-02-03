@@ -149,7 +149,7 @@ public class CassandraState implements State {
                 }
             }
         } catch (Exception e) {
-            LOG.warn("Batch retrieve operation is failed", e);
+            LOG.warn("Batch retrieve operation is failed.");
             throw new FailedException(e);
         }
         return batchRetrieveResult;

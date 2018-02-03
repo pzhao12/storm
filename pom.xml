@@ -20,7 +20,7 @@
     <parent>
         <groupId>org.apache</groupId>
         <artifactId>apache</artifactId>
-        <version>18</version>
+        <version>10</version>
     </parent>
 
 
@@ -297,6 +297,7 @@
         <rocketmq.version>4.0.0-incubating</rocketmq.version>
 
         <jackson.version>2.6.3</jackson.version>
+        <maven-surefire.version>2.18.1</maven-surefire.version>
         <!-- Kafka version used by old storm-kafka spout code -->
         <storm.kafka.version>0.8.2.2</storm.kafka.version>
         <storm.kafka.artifact.id>kafka_2.10</storm.kafka.artifact.id>
@@ -369,11 +370,10 @@
         <module>external/storm-jms</module>
         <module>external/storm-pmml</module>
         <module>external/storm-rocketmq</module>
-        <module>integration-test</module>
 
         <!-- examples -->
         <module>examples/storm-starter</module>
-        <module>examples/storm-loadgen</module>
+	<module>examples/storm-loadgen</module>
         <module>examples/storm-mongodb-examples</module>
         <module>examples/storm-redis-examples</module>
         <module>examples/storm-opentsdb-examples</module>
@@ -558,7 +558,7 @@
                             <execution>
                                 <id>attach-sources</id>
                                 <goals>
-                                    <goal>jar-no-fork</goal>
+                                    <goal>jar</goal>
                                 </goals>
                             </execution>
                         </executions>
@@ -574,7 +574,7 @@
                             <execution>
                                 <id>attach-javadocs</id>
                                 <goals>
-                                    <goal>jar-no-fork</goal>
+                                    <goal>jar</goal>
                                 </goals>
                             </execution>
                             <execution>
@@ -1110,7 +1110,7 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-surefire-plugin</artifactId>
-                    <version>${surefire.version}</version>
+                    <version>${maven-surefire.version}</version>
                     <configuration>
                         <redirectTestOutputToFile>true</redirectTestOutputToFile>
                         <excludedGroups>${java.unit.test.exclude}</excludedGroups>
@@ -1123,7 +1123,7 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-failsafe-plugin</artifactId>
-                    <version>${surefire.version}</version>
+                    <version>${maven-surefire.version}</version>
                     <configuration>
                         <includes>
                             <include>${java.integration.test.include}</include>
@@ -1156,7 +1156,7 @@
                             <artifactId>checkstyle</artifactId>
                             <!-- If you change this, you should also update the storm_checkstyle.xml file to be
                             based on the google_checks.xml from the version of checkstyle you are choosing. -->
-                            <version>8.2</version>
+                            <version>7.7</version>
                         </dependency>
                     </dependencies>
                     <executions>
@@ -1199,6 +1199,41 @@
                     </executions>
                 </plugin>
                 <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-assembly-plugin</artifactId>
+                    <version>2.2.2</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-install-plugin</artifactId>
+                    <version>2.4</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-compiler-plugin</artifactId>
+                    <version>3.1</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-source-plugin</artifactId>
+                    <version>2.2.1</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-javadoc-plugin</artifactId>
+                    <version>2.9</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-jar-plugin</artifactId>
+                    <version>2.4</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-release-plugin</artifactId>
+                    <version>2.5</version>
+                </plugin>
+                <plugin>
                     <groupId>com.theoryinpractise</groupId>
                     <artifactId>clojure-maven-plugin</artifactId>
                     <version>1.7.1</version>
@@ -1206,8 +1241,29 @@
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-surefire-report-plugin</artifactId>
+                    <version>2.16</version>
+                </plugin>
+
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-gpg-plugin</artifactId>
+                    <version>1.6</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-shade-plugin</artifactId>
                     <version>2.4.1</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-project-info-reports-plugin</artifactId>
+                    <version>2.7</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-site-plugin</artifactId>
+                    <version>3.3</version>
                 </plugin>
             </plugins>
         </pluginManagement>
